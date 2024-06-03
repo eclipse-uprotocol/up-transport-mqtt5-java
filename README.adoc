@@ -1,0 +1,15 @@
+= up-client-mqtt5-java
+:toc:
+
+== Overview
+
+Java upClient for MQTT5
+
+== Docs
+
+we have multiple docs for different stakeholders:
+
+* for system integrators who want to use this library, have a look in link:docs/use/How-to-use-in-my-service.adoc[]
+** this includes a table of *supported versions*
+* for developers who want to contribute in this library, have a look in link:CONTRIBUTING.adoc[] and link:docs/maintain/[] folder
+

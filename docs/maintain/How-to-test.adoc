@@ -1,0 +1,14 @@
+[#_how_to_test]
+= How to test?
+
+== locally
+
+The following frameworks are used for testing
+
+- junit
+- assertJ
+- mockito
+
+== in CI
+
+Tests will be executed in GitHub actions on every pull request and in each release pipeline.
