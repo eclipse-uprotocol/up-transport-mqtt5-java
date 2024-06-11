@@ -6,21 +6,22 @@ import com.hivemq.client.mqtt.datatypes.MqttTopicFilter;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5AsyncClient;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
 import com.hivemq.client.mqtt.mqtt5.datatypes.Mqtt5UserProperties;
+import com.hivemq.client.mqtt.mqtt5.message.publish.Mqtt5Publish;
 import com.hivemq.client.mqtt.mqtt5.message.publish.Mqtt5PublishBuilder;
 import com.hivemq.client.mqtt.mqtt5.message.publish.Mqtt5PublishResult;
 import org.eclipse.uprotocol.transport.UListener;
 import org.eclipse.uprotocol.transport.UTransport;
-import org.eclipse.uprotocol.v1.UAttributes;
-import org.eclipse.uprotocol.v1.UMessage;
-import org.eclipse.uprotocol.v1.UStatus;
-import org.eclipse.uprotocol.v1.UUri;
+import org.eclipse.uprotocol.uuid.serializer.UuidSerializer;
+import org.eclipse.uprotocol.v1.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import static org.eclipse.uprotocol.v1.UCode.INTERNAL;
 import static org.eclipse.uprotocol.v1.UCode.OK;
@@ -28,6 +29,18 @@ import static org.eclipse.uprotocol.v1.UCode.OK;
 class HiveMqMQTT5Client implements UTransport {
 
     private static final Logger LOG = LoggerFactory.getLogger(HiveMqMQTT5Client.class);
+    private static final String USER_PROPERTIES_KEY_FOR_ID = "1";
+    private static final String USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE = "2";
+    private static final String USER_PROPERTIES_KEY_FOR_PRIORITY = "5";
+    private static final String USER_PROPERTIES_KEY_FOR_TTL = "6";
+    private static final String USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL = "7";
+    private static final String USER_PROPERTIES_KEY_FOR_COMMSTATUS = "8";
+    private static final String USER_PROPERTIES_KEY_FOR_REQID = "9";
+    private static final String USER_PROPERTIES_KEY_FOR_TOKEN = "10";
+    private static final String USER_PROPERTIES_KEY_FOR_TRACEPARENT = "11";
+    private static final String USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT = "12";
+    private static final String USER_PROPERTIES_KEY_FOR_SOURCE_NAME = "3";
+    private static final String USER_PROPERTIES_KEY_FOR_SINK_NAME = "4";
     private final Mqtt5AsyncClient client;
     private final UUri source;
 
@@ -36,24 +49,29 @@ class HiveMqMQTT5Client implements UTransport {
         this.source = source;
     }
 
+    @Override
+    public UStatus send(UMessage uMessage) {
+        return sendAsync(uMessage).join();
+    }
+
     public CompletableFuture<UStatus> sendAsync(UMessage uMessage) {
         LOG.trace("should send a message:\n{}", uMessage);
         CompletableFuture<UStatus> result = new CompletableFuture<>();
 
         Mqtt5UserProperties userProperties = Mqtt5UserProperties.builder()
                 .add("0", "1")
-                .add("1", uMessage.getAttributes().getId().toString())
-                .add("2", Integer.toString(uMessage.getAttributes().getTypeValue()))
-                .add("3", uMessage.getAttributes().getSource().getAuthorityName())
-                .add("4", uMessage.getAttributes().getSink().getAuthorityName())
-                .add("5", Integer.toString(uMessage.getAttributes().getPriorityValue()))
-                .add("6", Integer.toString(uMessage.getAttributes().getTtl()))
-                .add("7", Integer.toString(uMessage.getAttributes().getPermissionLevel()))
-                .add("8", Integer.toString(uMessage.getAttributes().getCommstatusValue()))
-                .add("9", uMessage.getAttributes().getReqid().toString())
-                .add("10", uMessage.getAttributes().getToken())
-                .add("11", uMessage.getAttributes().getTraceparent())
-                .add("12", Integer.toString(uMessage.getAttributes().getPayloadFormatValue()))
+                .add(USER_PROPERTIES_KEY_FOR_ID, UuidSerializer.serialize(uMessage.getAttributes().getId()))
+                .add(USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE, Integer.toString(uMessage.getAttributes().getTypeValue()))
+                .add(USER_PROPERTIES_KEY_FOR_SOURCE_NAME, uMessage.getAttributes().getSource().getAuthorityName())
+                .add(USER_PROPERTIES_KEY_FOR_SINK_NAME, uMessage.getAttributes().getSink().getAuthorityName())
+                .add(USER_PROPERTIES_KEY_FOR_PRIORITY, Integer.toString(uMessage.getAttributes().getPriorityValue()))
+                .add(USER_PROPERTIES_KEY_FOR_TTL, Integer.toString(uMessage.getAttributes().getTtl()))
+                .add(USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL, Integer.toString(uMessage.getAttributes().getPermissionLevel()))
+                .add(USER_PROPERTIES_KEY_FOR_COMMSTATUS, Integer.toString(uMessage.getAttributes().getCommstatusValue()))
+                .add(USER_PROPERTIES_KEY_FOR_REQID, UuidSerializer.serialize(uMessage.getAttributes().getReqid()))
+                .add(USER_PROPERTIES_KEY_FOR_TOKEN, uMessage.getAttributes().getToken())
+                .add(USER_PROPERTIES_KEY_FOR_TRACEPARENT, uMessage.getAttributes().getTraceparent())
+                .add(USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT, Integer.toString(uMessage.getAttributes().getPayloadFormatValue()))
                 .build();
 
         Mqtt5PublishBuilder.Send.Complete<CompletableFuture<Mqtt5PublishResult>> sendHandle = client.publishWith()
@@ -62,7 +80,7 @@ class HiveMqMQTT5Client implements UTransport {
                 .userProperties(userProperties);
 
         if (uMessage.getAttributes().hasTtl()) {
-            sendHandle = sendHandle.messageExpiryInterval(Math.round(uMessage.getAttributes().getTtl() / 1000d));
+            sendHandle.messageExpiryInterval(Math.round(uMessage.getAttributes().getTtl() / 1000d));
         }
 
         sendHandle
@@ -82,29 +100,22 @@ class HiveMqMQTT5Client implements UTransport {
         return result;
     }
 
-    @Override
-    public UStatus send(UMessage uMessage) {
-        return sendAsync(uMessage).join();
-    }
-
     public CompletableFuture<UStatus> registerListenerAsync(UUri sourceFilter, UUri sinkFilter, UListener listener) {
         LOG.trace("registering Listener for \nsource={}\nsink={}\nlistener={}", sourceFilter, sinkFilter, listener);
         CompletableFuture<UStatus> result = new CompletableFuture<>();
+
 
         client.subscribeWith()
                 .topicFilter(getTopicFilterForReceiving(sourceFilter, sinkFilter))
                 .userProperties()
                 .add("listenerId", String.valueOf(listener.hashCode()))
                 .applyUserProperties()
-                .callback(mqtt5Publish ->
-                        listener.onReceive(UMessage.newBuilder()
-                                // todo: build UMessage
-                                .setAttributes(UAttributes.newBuilder()
-//                                                .setSink()
-//                                                .setSource()
-                                        .build())
-                                .setPayload(ByteString.copyFrom(mqtt5Publish.getPayloadAsBytes()))
-                                .build()))
+                .callback(mqtt5Publish -> {
+                    listener.onReceive(UMessage.newBuilder()
+                            .setAttributes(extractUAttributesFromReceivedMQTTMessage(mqtt5Publish))
+                            .setPayload(ByteString.copyFrom(mqtt5Publish.getPayloadAsBytes()))
+                            .build());
+                })
                 .send()
                 .whenCompleteAsync((mqtt5SubAck, throwable) -> {
                     if (throwable != null) {
@@ -202,5 +213,67 @@ class HiveMqMQTT5Client implements UTransport {
             return 'c';
         }
         return 'd';
+    }
+
+    private UAttributes extractUAttributesFromReceivedMQTTMessage(Mqtt5Publish mqtt5Publish) {
+        assert mqtt5Publish.getTopic().getLevels().size() == 9 : "Topic did not match uProtocol pattern for mqtt messages of this spec";
+
+        Map<String, String> userProperties = convertUserPropertiesToMap(mqtt5Publish.getUserProperties());
+        UAttributes.Builder builder = UAttributes.newBuilder();
+
+        builder
+                .setSource(UUri.newBuilder()
+                        .setAuthorityName(mqtt5Publish.getTopic().getLevels().get(1))
+                        .setUeId(Integer.valueOf(mqtt5Publish.getTopic().getLevels().get(2), 16))
+                        .setUeVersionMajor(Integer.valueOf(mqtt5Publish.getTopic().getLevels().get(3), 16))
+                        .setResourceId(Integer.valueOf(mqtt5Publish.getTopic().getLevels().get(4), 16))
+                        .build())
+                .setSink(UUri.newBuilder()
+                        .setAuthorityName(mqtt5Publish.getTopic().getLevels().get(5))
+                        .setUeId(Integer.valueOf(mqtt5Publish.getTopic().getLevels().get(6), 16))
+                        .setUeVersionMajor(Integer.valueOf(mqtt5Publish.getTopic().getLevels().get(7), 16))
+                        .setResourceId(Integer.valueOf(mqtt5Publish.getTopic().getLevels().get(8), 16))
+                        .build());
+
+        userProperties.forEach((key, value) -> {
+            Optional<Integer> valueAsInt = Optional.empty();
+            try {
+                valueAsInt = Optional.of(Integer.parseInt(value));
+            } catch (NumberFormatException e) {
+                LOG.trace("value is not a number {}", value);
+            }
+            switch (key) {
+                case USER_PROPERTIES_KEY_FOR_ID -> builder.setId(UuidSerializer.deserialize(value));
+                case USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE ->
+                        valueAsInt.map(UMessageType::forNumber).ifPresent(builder::setType);
+                case USER_PROPERTIES_KEY_FOR_PRIORITY ->
+                        valueAsInt.map(UPriority::forNumber).ifPresent(builder::setPriority);
+                case USER_PROPERTIES_KEY_FOR_TTL ->
+                        valueAsInt.ifPresent(builder::setTtl);
+                case USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL ->
+                        valueAsInt.ifPresent(builder::setPermissionLevel);
+                case USER_PROPERTIES_KEY_FOR_COMMSTATUS ->
+                        valueAsInt.map(UCode::forNumber).ifPresent(builder::setCommstatus);
+                case USER_PROPERTIES_KEY_FOR_REQID -> builder.setReqid(UuidSerializer.deserialize(value));
+                case USER_PROPERTIES_KEY_FOR_TOKEN ->
+                        builder.setToken(value);
+                case USER_PROPERTIES_KEY_FOR_TRACEPARENT ->
+                        builder.setTraceparent(value);
+                case USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT ->
+                        valueAsInt.map(UPayloadFormat::forNumber).ifPresent(builder::setPayloadFormat);
+                default -> LOG.warn("unkown user properties for key {}", key);
+            }
+        });
+
+        return builder.build();
+    }
+
+
+    private Map<String, String> convertUserPropertiesToMap(Mqtt5UserProperties userProperties) {
+        return userProperties.asList().stream().collect(
+                Collectors.toMap(
+                        property -> property.getName().toString(),
+                        property -> property.getValue().toString())
+        );
     }
 }
