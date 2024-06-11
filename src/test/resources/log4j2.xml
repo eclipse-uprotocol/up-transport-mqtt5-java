@@ -1,0 +1,16 @@
+<Configuration name="ConfigTest" status="ERROR" monitorInterval="5">
+    <Appenders>
+        <Console name="console">
+            <PatternLayout pattern="%d [%t] %-5level %logger{36} - %msg%n%throwable"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Logger name="org.eclipse.uprotocol" level="info" additivity="false">
+            <AppenderRef ref="console" />
+        </Logger>
+
+        <Root level="error">
+            <AppenderRef ref="console"/>
+        </Root>
+    </Loggers>
+</Configuration>
