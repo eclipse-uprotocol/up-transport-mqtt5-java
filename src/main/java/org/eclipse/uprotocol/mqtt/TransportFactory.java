@@ -7,7 +7,9 @@ import org.eclipse.uprotocol.v1.UUri;
 public class TransportFactory {
 
     public static UTransport createInstance(UUri source, Mqtt5Client client) {
-        assert client != null : "client must not be null";
+        if (source == null || client == null)
+            throw new IllegalArgumentException("source and client must not be null");
+
         return new HiveMqMQTT5Client(source, client);
     }
 }

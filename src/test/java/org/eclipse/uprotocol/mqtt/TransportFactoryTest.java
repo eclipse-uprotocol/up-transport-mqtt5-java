@@ -15,8 +15,8 @@ class TransportFactoryTest {
     @Test
     void givenNoClient_whenInvokeCreateInstance_shouldThrowAnException() {
         assertThatCode(() -> TransportFactory.createInstance(mock(UUri.class), null))
-                .isInstanceOf(AssertionError.class)
-                .hasMessage("client must not be null");
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("source and client must not be null");
     }
 
     @Test

@@ -215,8 +215,9 @@ class HiveMqMQTT5Client implements UTransport {
         return 'd';
     }
 
-    private UAttributes extractUAttributesFromReceivedMQTTMessage(Mqtt5Publish mqtt5Publish) {
-        assert mqtt5Publish.getTopic().getLevels().size() == 9 : "Topic did not match uProtocol pattern for mqtt messages of this spec";
+    private UAttributes extractUAttributesFromReceivedMQTTMessage(@NotNull Mqtt5Publish mqtt5Publish) {
+        if (mqtt5Publish.getTopic().getLevels().size() != 9)
+            throw new IllegalArgumentException("Topic did not match uProtocol pattern for mqtt messages of this spec");
 
         Map<String, String> userProperties = convertUserPropertiesToMap(mqtt5Publish.getUserProperties());
         UAttributes.Builder builder = UAttributes.newBuilder();
