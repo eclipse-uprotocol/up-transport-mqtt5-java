@@ -9,7 +9,7 @@
 
 | library version | spec version | supported mqtt libraries
 
-| `0.1.0` | `1.5.7` |
+| `0.1.0` | `1.5.8` |
 - `com.hivemq:hivemq-mqtt-client:1.3.3`
 
 |===
