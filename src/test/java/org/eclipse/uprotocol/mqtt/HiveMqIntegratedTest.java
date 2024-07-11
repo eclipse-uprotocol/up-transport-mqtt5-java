@@ -83,7 +83,7 @@ class HiveMqIntegratedTest {
                         .build())
                 .build();
 
-        UStatus response = serviceUnderTest.send(message);
+        UStatus response = serviceUnderTest.send(message).toCompletableFuture().join();
         assertThat(response.getCode()).isEqualTo(UCode.OK);
         Mqtt5Publish receive = handleToReceiveMqttMessages.receive(1, TimeUnit.SECONDS).get();
         assertThat(new String(receive.getPayloadAsBytes())).isEqualTo("Hello World");
@@ -103,17 +103,35 @@ class HiveMqIntegratedTest {
                                 .build())
                         .build())
                 .build();
-        UStatus response = serviceUnderTest.send(message);
+        UStatus response = serviceUnderTest.send(message).toCompletableFuture().join();
         assertThat(response.getCode()).isEqualTo(UCode.OK);
         Mqtt5Publish receive = handleToReceiveMqttMessages.receive(1, TimeUnit.SECONDS).get();
         assertThat(new String(receive.getPayloadAsBytes())).isEqualTo("Hello World");
     }
 
     @Test
-    void givenBlancoListener_whenAddingListenerAndReceivingMessages_shouldCallListener() throws InterruptedException {
+    @Disabled("Broadcast topic is not defined")
+    void givenValidClientAndBroadcastMessage_whenInvokeSend_shouldSendCorrectMessageToMqtt() throws InterruptedException {
+        UMessage message = UMessage.newBuilder()
+                .setPayload(ByteString.copyFrom("Hello World", Charset.defaultCharset()))
+                .setAttributes(UAttributes.newBuilder()
+                        .setId(UUID.newBuilder().build())
+                        .setSource(UUri.newBuilder()
+                                .setAuthorityName("testSource.someUri.network")
+                                .build())
+                        .build())
+                .build();
+        UStatus response = serviceUnderTest.send(message).toCompletableFuture().join();
+        assertThat(response.getCode()).isEqualTo(UCode.OK);
+        Mqtt5Publish receive = handleToReceiveMqttMessages.receive(1, TimeUnit.SECONDS).get();
+        assertThat(new String(receive.getPayloadAsBytes())).isEqualTo("Hello World");
+    }
+
+    @Test
+    void givenBlancoListener_whenAddingListenerAndReceivingMessages_shouldCallListener() {
         UListener listener = mock(UListener.class);
 
-        UStatus status = serviceUnderTest.registerListener(null, listener);
+        UStatus status = serviceUnderTest.registerListener(null, listener).toCompletableFuture().join();
 
         mqttClientForTests.publishWith().topic("a/some-source/c/d/e/some-sink/a/b/c").payload("Hello World".getBytes(Charset.defaultCharset())).send();
 
@@ -129,6 +147,41 @@ class HiveMqIntegratedTest {
     }
 
     @Test
+    void givenBlancoListener_whenAddingListenerAndReceivingAnyMessage_shouldCallListener() {
+        UListener listener = mock(UListener.class);
+
+        UStatus status = serviceUnderTest.registerListener(null, listener).toCompletableFuture().join();
+
+        mqttClientForTests.publishWith().topic("a/b/c/d/e/f/a/b/c").payload("Hello World".getBytes(Charset.defaultCharset())).send();
+
+        assertThat(status.getCode()).isEqualTo(UCode.OK);
+
+        ArgumentCaptor<UMessage> captor = ArgumentCaptor.captor();
+        verify(listener, Mockito.timeout(1000).times(1)).onReceive(captor.capture());
+        assertThat(captor.getValue()).isNotNull();
+        assertThat(captor.getValue().getPayload()).isNotNull();
+        assertThat(captor.getValue().getPayload().toString(Charset.defaultCharset())).isEqualTo("Hello World");
+    }
+
+    @Test
+    @Disabled("Broadcast topic is not defined")
+    void givenBlancoListener_whenAddingListenerAndReceivingBroadcastMessages_shouldCallListener() {
+        UListener listener = mock(UListener.class);
+
+        UStatus status = serviceUnderTest.registerListener(null, listener).toCompletableFuture().join();
+
+        mqttClientForTests.publishWith().topic("a/some-source/c/d/e////").payload("Hello World".getBytes(Charset.defaultCharset())).send();
+
+        assertThat(status.getCode()).isEqualTo(UCode.OK);
+
+        ArgumentCaptor<UMessage> captor = ArgumentCaptor.captor();
+        verify(listener, Mockito.timeout(1000).times(1)).onReceive(captor.capture());
+        assertThat(captor.getValue()).isNotNull();
+        assertThat(captor.getValue().getPayload()).isNotNull();
+        assertThat(captor.getValue().getPayload().toString(Charset.defaultCharset())).isEqualTo("Hello World");
+    }
+
+    @Test
     void givenCloudListener_whenAddingListenerAndReceivingMessages_shouldCallListener() {
         UListener listener = mock(UListener.class);
 
@@ -138,7 +191,7 @@ class HiveMqIntegratedTest {
                         .setUeId(0xffff)
                         .setUeVersionMajor(0xff)
                         .setResourceId(0xffff)
-                        .build(), listener);
+                        .build(), listener).toCompletableFuture().join();
 
         mqttClientForTests.publishWith().topic("c/cloud/c/d/e/f/a/b/c")
                 .payload("Hello World".getBytes(Charset.defaultCharset()))
@@ -159,9 +212,9 @@ class HiveMqIntegratedTest {
     @Test
     void givenBlancoListenerRegistered_whenUnregisterListener_shouldNotCallListenerOnReceivingMessages() {
         UListener listener = mock(UListener.class);
-        serviceUnderTest.registerListener(null, listener);
+        serviceUnderTest.registerListener(null, listener).toCompletableFuture().join();
 
-        UStatus status = serviceUnderTest.unregisterListener(null, listener);
+        UStatus status = serviceUnderTest.unregisterListener(null, listener).toCompletableFuture().join();
 
         mqttClientForTests.publishWith().topic("a/b/c/d/e/f/a/b/c").payload("Hello World".getBytes(Charset.defaultCharset())).send();
 
@@ -174,8 +227,8 @@ class HiveMqIntegratedTest {
     void given2ListenersForSameSourceAndSink_whenReceivingMessages_shouldInvokeBothListeners() {
         UListener listener = mock(UListener.class);
         UListener listener2 = mock(UListener.class);
-        serviceUnderTest.registerListener(null, listener);
-        serviceUnderTest.registerListener(null, listener2);
+        serviceUnderTest.registerListener(null, listener).toCompletableFuture().join();
+        serviceUnderTest.registerListener(null, listener2).toCompletableFuture().join();
 
         mqttClientForTests.publishWith().topic("a/b/c/d/e/f/a/b/c").payload("Hello World".getBytes(Charset.defaultCharset())).send();
 
@@ -203,14 +256,14 @@ class HiveMqIntegratedTest {
                 .setUeVersionMajor(0xff)
                 .setResourceId(0xffff)
                 .build(),
-                radioDeviceListenOnCloudEvents);
+                radioDeviceListenOnCloudEvents).toCompletableFuture().join();
         serviceUnderTest.registerListener(UUri.newBuilder()
                 .setAuthorityName("cloud")
                 .setUeId(0xffff)
                 .setUeVersionMajor(0xff)
                 .setResourceId(0xffff)
                 .build(),
-                multimediaDeviceListenOnCloudEvents);
+                multimediaDeviceListenOnCloudEvents).toCompletableFuture().join();
 
 
         //radio went offline, caused by human pressing on power button on radio
@@ -220,7 +273,7 @@ class HiveMqIntegratedTest {
                         .setUeVersionMajor(0xff)
                         .setResourceId(0xffff)
                         .build(),
-                radioDeviceListenOnCloudEvents);
+                radioDeviceListenOnCloudEvents).toCompletableFuture().join();
 
         //some service publishes something on cloud
         mqttClientForTests.publishWith().topic("c/cloud/c/d/e/f/a/b/c").payload("Hello World".getBytes(Charset.defaultCharset())).send();
@@ -238,14 +291,14 @@ class HiveMqIntegratedTest {
     void given2Listeners_whenUnregisterOneListener_shouldInvokeOtherListenersOnMessageReceived() {
         UListener allWildcardListener = mock(UListener.class);
         UListener listenerForAllCloudEvents = mock(UListener.class);
-        serviceUnderTest.registerListener(null, allWildcardListener);
+        serviceUnderTest.registerListener(null, allWildcardListener).toCompletableFuture().join();
         serviceUnderTest.registerListener(UUri.newBuilder()
                         .setAuthorityName("cloud")
                         .setUeId(0xffff)
                         .setUeVersionMajor(0xff)
                         .setResourceId(0xffff)
                         .build(),
-                listenerForAllCloudEvents);
+                listenerForAllCloudEvents).toCompletableFuture().join();
 
         serviceUnderTest.unregisterListener(UUri.newBuilder()
                         .setAuthorityName("cloud")
@@ -253,7 +306,7 @@ class HiveMqIntegratedTest {
                         .setUeVersionMajor(0xff)
                         .setResourceId(0xffff)
                         .build(),
-                listenerForAllCloudEvents);
+                listenerForAllCloudEvents).toCompletableFuture().join();
 
         mqttClientForTests.publishWith().topic("c/cloud/c/d/e/f/a/b/c").payload("Hello World".getBytes(Charset.defaultCharset())).send();
 

@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 
 import static org.eclipse.uprotocol.v1.UCode.INTERNAL;
@@ -50,8 +51,13 @@ class HiveMqMQTT5Client implements UTransport {
     }
 
     @Override
-    public UStatus send(UMessage uMessage) {
-        return sendAsync(uMessage).join();
+    public CompletionStage<UStatus> send(UMessage uMessage) {
+        return sendAsync(uMessage);
+    }
+
+    @Override
+    public CompletionStage<UStatus> registerListener(UUri sourceFilter, UListener listener) {
+        return UTransport.super.registerListener(sourceFilter, listener);
     }
 
     public CompletableFuture<UStatus> sendAsync(UMessage uMessage) {
@@ -111,6 +117,7 @@ class HiveMqMQTT5Client implements UTransport {
                 .add("listenerId", String.valueOf(listener.hashCode()))
                 .applyUserProperties()
                 .callback(mqtt5Publish -> {
+                    LOG.trace("received message {}", mqtt5Publish);
                     listener.onReceive(UMessage.newBuilder()
                             .setAttributes(extractUAttributesFromReceivedMQTTMessage(mqtt5Publish))
                             .setPayload(ByteString.copyFrom(mqtt5Publish.getPayloadAsBytes()))
@@ -131,8 +138,13 @@ class HiveMqMQTT5Client implements UTransport {
     }
 
     @Override
-    public UStatus registerListener(UUri sourceFilter, UUri sinkFilter, UListener listener) {
-        return registerListenerAsync(sourceFilter, sinkFilter, listener).join();
+    public CompletionStage<UStatus> registerListener(UUri sourceFilter, UUri sinkFilter, UListener listener) {
+        return registerListenerAsync(sourceFilter, sinkFilter, listener);
+    }
+
+    @Override
+    public CompletionStage<UStatus> unregisterListener(UUri sourceFilter, UListener listener) {
+        return UTransport.super.unregisterListener(sourceFilter, listener);
     }
 
     public CompletableFuture<UStatus> unregisterListenerAsync(UUri sourceFilter, UUri sinkFilter, UListener listener) {
@@ -159,13 +171,18 @@ class HiveMqMQTT5Client implements UTransport {
     }
 
     @Override
-    public UStatus unregisterListener(UUri sourceFilter, UUri sinkFilter, UListener listener) {
-        return unregisterListenerAsync(sourceFilter, sinkFilter, listener).join();
+    public CompletionStage<UStatus> unregisterListener(UUri sourceFilter, UUri sinkFilter, UListener listener) {
+        return unregisterListenerAsync(sourceFilter, sinkFilter, listener);
     }
 
     @Override
     public UUri getSource() {
         return source;
+    }
+
+    @Override
+    public void close() {
+        client.disconnect();
     }
 
     private @NotNull MqttTopic getTopicForSending(@NotNull UUri source, @Nullable UUri sink) {
