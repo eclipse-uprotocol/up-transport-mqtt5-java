@@ -32,6 +32,8 @@ class HiveMqMQTT5Client implements UTransport {
     private static final Logger LOG = LoggerFactory.getLogger(HiveMqMQTT5Client.class);
     private static final String USER_PROPERTIES_KEY_FOR_ID = "1";
     private static final String USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE = "2";
+    private static final String USER_PROPERTIES_KEY_FOR_SOURCE_NAME = "3";
+    private static final String USER_PROPERTIES_KEY_FOR_SINK_NAME = "4";
     private static final String USER_PROPERTIES_KEY_FOR_PRIORITY = "5";
     private static final String USER_PROPERTIES_KEY_FOR_TTL = "6";
     private static final String USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL = "7";
@@ -40,8 +42,6 @@ class HiveMqMQTT5Client implements UTransport {
     private static final String USER_PROPERTIES_KEY_FOR_TOKEN = "10";
     private static final String USER_PROPERTIES_KEY_FOR_TRACEPARENT = "11";
     private static final String USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT = "12";
-    private static final String USER_PROPERTIES_KEY_FOR_SOURCE_NAME = "3";
-    private static final String USER_PROPERTIES_KEY_FOR_SINK_NAME = "4";
     private final Mqtt5AsyncClient client;
     private final UUri source;
 
@@ -52,15 +52,6 @@ class HiveMqMQTT5Client implements UTransport {
 
     @Override
     public CompletionStage<UStatus> send(UMessage uMessage) {
-        return sendAsync(uMessage);
-    }
-
-    @Override
-    public CompletionStage<UStatus> registerListener(UUri sourceFilter, UListener listener) {
-        return UTransport.super.registerListener(sourceFilter, listener);
-    }
-
-    public CompletableFuture<UStatus> sendAsync(UMessage uMessage) {
         LOG.trace("should send a message:\n{}", uMessage);
         CompletableFuture<UStatus> result = new CompletableFuture<>();
 
@@ -106,7 +97,8 @@ class HiveMqMQTT5Client implements UTransport {
         return result;
     }
 
-    public CompletableFuture<UStatus> registerListenerAsync(UUri sourceFilter, UUri sinkFilter, UListener listener) {
+    @Override
+    public CompletionStage<UStatus> registerListener(UUri sourceFilter, UUri sinkFilter, UListener listener) {
         LOG.trace("registering Listener for \nsource={}\nsink={}\nlistener={}", sourceFilter, sinkFilter, listener);
         CompletableFuture<UStatus> result = new CompletableFuture<>();
 
@@ -138,16 +130,7 @@ class HiveMqMQTT5Client implements UTransport {
     }
 
     @Override
-    public CompletionStage<UStatus> registerListener(UUri sourceFilter, UUri sinkFilter, UListener listener) {
-        return registerListenerAsync(sourceFilter, sinkFilter, listener);
-    }
-
-    @Override
-    public CompletionStage<UStatus> unregisterListener(UUri sourceFilter, UListener listener) {
-        return UTransport.super.unregisterListener(sourceFilter, listener);
-    }
-
-    public CompletableFuture<UStatus> unregisterListenerAsync(UUri sourceFilter, UUri sinkFilter, UListener listener) {
+    public CompletionStage<UStatus> unregisterListener(UUri sourceFilter, UUri sinkFilter, UListener listener) {
         LOG.trace("unregistering Listener for \nsource={}\nsink={}\nlistener={}", sourceFilter, sinkFilter, listener);
 
         CompletableFuture<UStatus> result = new CompletableFuture<>();
@@ -168,11 +151,6 @@ class HiveMqMQTT5Client implements UTransport {
                 });
 
         return result;
-    }
-
-    @Override
-    public CompletionStage<UStatus> unregisterListener(UUri sourceFilter, UUri sinkFilter, UListener listener) {
-        return unregisterListenerAsync(sourceFilter, sinkFilter, listener);
     }
 
     @Override
