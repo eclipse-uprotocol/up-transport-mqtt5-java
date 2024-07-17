@@ -11,6 +11,7 @@ import com.hivemq.client.mqtt.mqtt5.message.publish.Mqtt5PublishBuilder;
 import com.hivemq.client.mqtt.mqtt5.message.publish.Mqtt5PublishResult;
 import org.eclipse.uprotocol.transport.UListener;
 import org.eclipse.uprotocol.transport.UTransport;
+import org.eclipse.uprotocol.uri.serializer.UriSerializer;
 import org.eclipse.uprotocol.uuid.serializer.UuidSerializer;
 import org.eclipse.uprotocol.v1.*;
 import org.jetbrains.annotations.NotNull;
@@ -59,8 +60,8 @@ class HiveMqMQTT5Client implements UTransport {
                 .add("0", "1")
                 .add(USER_PROPERTIES_KEY_FOR_ID, UuidSerializer.serialize(uMessage.getAttributes().getId()))
                 .add(USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE, Integer.toString(uMessage.getAttributes().getTypeValue()))
-                .add(USER_PROPERTIES_KEY_FOR_SOURCE_NAME, uMessage.getAttributes().getSource().getAuthorityName())
-                .add(USER_PROPERTIES_KEY_FOR_SINK_NAME, uMessage.getAttributes().getSink().getAuthorityName())
+                .add(USER_PROPERTIES_KEY_FOR_SOURCE_NAME, UriSerializer.serialize(uMessage.getAttributes().getSource()))
+                .add(USER_PROPERTIES_KEY_FOR_SINK_NAME, UriSerializer.serialize(uMessage.getAttributes().getSink()))
                 .add(USER_PROPERTIES_KEY_FOR_PRIORITY, Integer.toString(uMessage.getAttributes().getPriorityValue()))
                 .add(USER_PROPERTIES_KEY_FOR_TTL, Integer.toString(uMessage.getAttributes().getTtl()))
                 .add(USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL, Integer.toString(uMessage.getAttributes().getPermissionLevel()))
