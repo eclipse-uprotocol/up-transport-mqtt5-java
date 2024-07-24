@@ -1,3 +1,15 @@
+/**
+ * SPDX-FileCopyrightText: 2024 Contributors to the Eclipse Foundation
+ *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Apache License Version 2.0 which is available at
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 package org.eclipse.uprotocol.mqtt;
 
 import com.google.protobuf.ByteString;
@@ -35,7 +47,7 @@ class HiveMqIntegratedTest {
     private final static Logger LOGGER = LoggerFactory.getLogger(HiveMqIntegratedTest.class);
     @Container
     final HiveMQContainer hivemqCe = new HiveMQContainer(DockerImageName.parse("hivemq/hivemq-ce").withTag("2024.3"))
-            .withLogLevel(Level.INFO);
+            .withLogLevel(Level.TRACE);
     private UTransport serviceUnderTest;
     private Mqtt5BlockingClient.Mqtt5Publishes handleToReceiveMqttMessages;
     private Mqtt5BlockingClient mqttClientForTests;
