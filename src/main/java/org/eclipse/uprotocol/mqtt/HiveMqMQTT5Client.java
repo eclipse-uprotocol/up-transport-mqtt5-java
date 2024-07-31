@@ -42,7 +42,6 @@ import java.util.stream.Collectors;
 
 import static org.eclipse.uprotocol.v1.UCode.INTERNAL;
 import static org.eclipse.uprotocol.v1.UCode.OK;
-import static org.eclipse.uprotocol.v1.UPayloadFormat.UPAYLOAD_FORMAT_UNSPECIFIED;
 
 class HiveMqMQTT5Client implements UTransport {
 
@@ -149,7 +148,7 @@ class HiveMqMQTT5Client implements UTransport {
         if(attributes.hasTraceparent())
             builder.add(USER_PROPERTIES_KEY_FOR_TRACEPARENT, attributes.getTraceparent());
 
-        if(attributes.getPayloadFormat() != UPAYLOAD_FORMAT_UNSPECIFIED)
+        if(attributes.getPayloadFormat() != UPayloadFormat.UPAYLOAD_FORMAT_UNSPECIFIED)
             builder.add(USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT, Integer.toString(attributes.getPayloadFormatValue()));
 
         return builder.build();
