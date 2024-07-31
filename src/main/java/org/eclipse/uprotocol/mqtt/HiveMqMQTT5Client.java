@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 
 import static org.eclipse.uprotocol.v1.UCode.INTERNAL;
 import static org.eclipse.uprotocol.v1.UCode.OK;
+import static org.eclipse.uprotocol.v1.UPayloadFormat.UPAYLOAD_FORMAT_UNSPECIFIED;
 
 class HiveMqMQTT5Client implements UTransport {
 
@@ -115,18 +116,42 @@ class HiveMqMQTT5Client implements UTransport {
     private static @NotNull Mqtt5UserProperties buildUserProperties(UAttributes attributes) {
         Mqtt5UserPropertiesBuilder builder = Mqtt5UserProperties.builder();
         builder.add("0", "1");
-        builder.add(USER_PROPERTIES_KEY_FOR_ID, UuidSerializer.serialize(attributes.getId()));
-        builder.add(USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE, Integer.toString(attributes.getTypeValue()));
-        builder.add(USER_PROPERTIES_KEY_FOR_SOURCE_NAME, UriSerializer.serialize(attributes.getSource()));
-        builder.add(USER_PROPERTIES_KEY_FOR_SINK_NAME, UriSerializer.serialize(attributes.getSink()));
-        builder.add(USER_PROPERTIES_KEY_FOR_PRIORITY, Integer.toString(attributes.getPriorityValue()));
-        builder.add(USER_PROPERTIES_KEY_FOR_TTL, Integer.toString(attributes.getTtl()));
-        builder.add(USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL, Integer.toString(attributes.getPermissionLevel()));
-        builder.add(USER_PROPERTIES_KEY_FOR_COMMSTATUS, Integer.toString(attributes.getCommstatusValue()));
-        builder.add(USER_PROPERTIES_KEY_FOR_REQID, UuidSerializer.serialize(attributes.getReqid()));
-        builder.add(USER_PROPERTIES_KEY_FOR_TOKEN, attributes.getToken());
-        builder.add(USER_PROPERTIES_KEY_FOR_TRACEPARENT, attributes.getTraceparent());
-        builder.add(USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT, Integer.toString(attributes.getPayloadFormatValue()));
+        if (attributes.hasId())
+            builder.add(USER_PROPERTIES_KEY_FOR_ID, UuidSerializer.serialize(attributes.getId()));
+
+        if(attributes.getType() != UMessageType.UMESSAGE_TYPE_UNSPECIFIED)
+            builder.add(USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE, Integer.toString(attributes.getTypeValue()));
+
+        if(attributes.hasSource())
+            builder.add(USER_PROPERTIES_KEY_FOR_SOURCE_NAME, UriSerializer.serialize(attributes.getSource()));
+
+        if(attributes.hasSink())
+            builder.add(USER_PROPERTIES_KEY_FOR_SINK_NAME, UriSerializer.serialize(attributes.getSink()));
+
+        if(attributes.getPriority() != UPriority.UPRIORITY_UNSPECIFIED)
+            builder.add(USER_PROPERTIES_KEY_FOR_PRIORITY, Integer.toString(attributes.getPriorityValue()));
+
+        if (attributes.hasTtl())
+            builder.add(USER_PROPERTIES_KEY_FOR_TTL, Integer.toString(attributes.getTtl()));
+
+        if(attributes.hasPermissionLevel())
+            builder.add(USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL, Integer.toString(attributes.getPermissionLevel()));
+
+        if(attributes.hasCommstatus())
+            builder.add(USER_PROPERTIES_KEY_FOR_COMMSTATUS, Integer.toString(attributes.getCommstatusValue()));
+
+        if(attributes.hasReqid())
+            builder.add(USER_PROPERTIES_KEY_FOR_REQID, UuidSerializer.serialize(attributes.getReqid()));
+
+        if(attributes.hasToken())
+            builder.add(USER_PROPERTIES_KEY_FOR_TOKEN, attributes.getToken());
+
+        if(attributes.hasTraceparent())
+            builder.add(USER_PROPERTIES_KEY_FOR_TRACEPARENT, attributes.getTraceparent());
+
+        if(attributes.getPayloadFormat() != UPAYLOAD_FORMAT_UNSPECIFIED)
+            builder.add(USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT, Integer.toString(attributes.getPayloadFormatValue()));
+
         return builder.build();
     }
 
@@ -278,7 +303,7 @@ class HiveMqMQTT5Client implements UTransport {
                         builder.setTraceparent(value);
                 case USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT ->
                         valueAsInt.map(UPayloadFormat::forNumber).ifPresent(builder::setPayloadFormat);
-                default -> LOG.warn("unkown user properties for key {}", key);
+                default -> LOG.warn("unknown user properties for key {}", key);
             }
         });
 
