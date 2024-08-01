@@ -1,0 +1,53 @@
+= How to use this library in my service
+
+== Overview
+
+=== Support-table
+
+[cols="1,1,4a"]
+|===
+
+| library version | spec version | supported mqtt libraries
+
+| `0.1.0` | `1.5.8` |
+- `com.hivemq:hivemq-mqtt-client:1.3.3`
+
+|===
+
+== Setup
+
+=== Importing the Library
+
+To pull the Library from maven central, setting ${uprotocol.version} to the latest version of this library in your pom.xml file:
+
+[source,xml]
+----
+<dependency>
+    <groupId>org.eclipse.uprotocol</groupId>
+    <artifactId>up-client-mqtt5-java</artifactId>
+    <version>0.1.0</version>
+</dependency>
+----
+
+=== Provide a mqtt client implementation you want to use
+e.g. adding hivemq
+
+[source,xml]
+----
+<dependency>
+    <groupId>com.hivemq</groupId>
+    <artifactId>hivemq-mqtt-client</artifactId>
+    <version>1.3.3</version>
+</dependency>
+----
+
+=== Setup Monitoring if wanted
+have a look in link:How-to-monitor.adoc[]
+
+== Usage
+
+=== Creating instances
+
+1. first create a supported mqtt client instance in your service
+2. call `TransportFactory.createInstance(client)` with that created client instance
+3. use the returned UTransport instance as desinged in uProtocol specification

@@ -1,0 +1,21 @@
+= How to monitor
+
+== Logging
+
+This framework uses slf4j for logging.
+
+=== Setup
+
+You need to provide a bridge library to see the messages in your log. Please see slf4j documentation for how to do so.
+
+=== Config
+
+See configuration documentation for SLF4j and/or your choosen bridge library how to do so.
+
+== Metrics
+
+TBD
+
+=== Published metrics
+
+- TBD

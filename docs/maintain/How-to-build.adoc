@@ -1,0 +1,16 @@
+= How to build
+
+This project uses maven as a building framework.
+This project will be built with basic maven command:
+
+[source,bash]
+----
+mvn clean install
+----
+
+The needed jdk version can be found in the pom.xml or in the pipelines in the `actions/setup-java` steps.
+
+== Quality Goals
+
+We got the following quality gates:
+- successful build of the HEAD of each pull request (performed in CI by GitHub actions)

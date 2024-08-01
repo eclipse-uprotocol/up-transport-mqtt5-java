@@ -1,0 +1,20 @@
+= How to test?
+
+== locally
+
+The following frameworks are used for testing
+
+- junit
+- assertJ
+- mockito
+- testcontainers (needs docker)
+
+All tests will be executed via `mvn clean install` and can be executed individually by `mvn test`
+
+== in CI
+
+Tests will be executed in GitHub actions on every pull request and in each release pipeline.
+
+== Test details
+
+- we will execute tests against a mqtt broker which will be created in a dockerContainer therefore a testcontainers compatible container runtime is needed (e.g. docker).
