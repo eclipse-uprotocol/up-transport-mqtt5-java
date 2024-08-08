@@ -45,19 +45,19 @@ import static org.eclipse.uprotocol.v1.UCode.OK;
 
 class HiveMqMQTT5Client implements UTransport {
 
-    private static final Logger LOG = LoggerFactory.getLogger(HiveMqMQTT5Client.class);
-    private static final String USER_PROPERTIES_KEY_FOR_ID = "1";
-    private static final String USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE = "2";
-    private static final String USER_PROPERTIES_KEY_FOR_SOURCE_NAME = "3";
-    private static final String USER_PROPERTIES_KEY_FOR_SINK_NAME = "4";
-    private static final String USER_PROPERTIES_KEY_FOR_PRIORITY = "5";
-    private static final String USER_PROPERTIES_KEY_FOR_TTL = "6";
-    private static final String USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL = "7";
-    private static final String USER_PROPERTIES_KEY_FOR_COMMSTATUS = "8";
-    private static final String USER_PROPERTIES_KEY_FOR_REQID = "9";
-    private static final String USER_PROPERTIES_KEY_FOR_TOKEN = "10";
-    private static final String USER_PROPERTIES_KEY_FOR_TRACEPARENT = "11";
-    private static final String USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT = "12";
+    public static final Logger LOG = LoggerFactory.getLogger(HiveMqMQTT5Client.class);
+    public static final String USER_PROPERTIES_KEY_FOR_ID = "1";
+    public static final String USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE = "2";
+    public static final String USER_PROPERTIES_KEY_FOR_SOURCE_NAME = "3";
+    public static final String USER_PROPERTIES_KEY_FOR_SINK_NAME = "4";
+    public static final String USER_PROPERTIES_KEY_FOR_PRIORITY = "5";
+    public static final String USER_PROPERTIES_KEY_FOR_TTL = "6";
+    public static final String USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL = "7";
+    public static final String USER_PROPERTIES_KEY_FOR_COMMSTATUS = "8";
+    public static final String USER_PROPERTIES_KEY_FOR_REQID = "9";
+    public static final String USER_PROPERTIES_KEY_FOR_TOKEN = "10";
+    public static final String USER_PROPERTIES_KEY_FOR_TRACEPARENT = "11";
+    public static final String USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT = "12";
     private final Mqtt5AsyncClient client;
     private final UUri source;
 
@@ -69,18 +69,21 @@ class HiveMqMQTT5Client implements UTransport {
     @Override
     public CompletionStage<UStatus> send(UMessage uMessage) {
         LOG.trace("should send a message:\n{}", uMessage);
-        CompletableFuture<UStatus> result = new CompletableFuture<>();
 
         UAttributesValidator validator = UAttributesValidator.getValidator(uMessage.getAttributes());
         ValidationResult validationResult = validator.validate(uMessage.getAttributes());
         if (validationResult.isFailure()) {
             throw new IllegalArgumentException("Invalid message attributes: " + validationResult);
         }
+        if(uMessage.getAttributes().hasTtl() && uMessage.getAttributes().getTtl() < 500){
+            throw new IllegalArgumentException("TimeToLive needs to be at least 500ms. All smaller ttls will be dropped immediately by hiveMq");
+        }
 
         Mqtt5UserProperties userProperties = buildUserProperties(uMessage.getAttributes());
 
         Mqtt5PublishBuilder.Send.Complete<CompletableFuture<Mqtt5PublishResult>> sendHandle = buildMqttSendHandle(uMessage, userProperties);
 
+        CompletableFuture<UStatus> result = new CompletableFuture<>();
         sendHandle
                 .send()
                 .whenCompleteAsync((mqtt5PublishResult, throwable) -> {
