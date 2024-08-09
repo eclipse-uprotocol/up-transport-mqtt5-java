@@ -32,7 +32,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          mvn clean test jacoco:report
+          ./mvnw clean test jacoco:report
 
 
       - name: Extract JaCoCo report
