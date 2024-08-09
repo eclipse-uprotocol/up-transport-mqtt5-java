@@ -16,9 +16,14 @@ import com.google.protobuf.ByteString;
 import com.hivemq.client.mqtt.MqttGlobalPublishFilter;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5BlockingClient;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
+import com.hivemq.client.mqtt.mqtt5.datatypes.Mqtt5UserProperties;
+import com.hivemq.client.mqtt.mqtt5.datatypes.Mqtt5UserProperty;
 import com.hivemq.client.mqtt.mqtt5.message.publish.Mqtt5Publish;
+import org.eclipse.uprotocol.communication.UPayload;
 import org.eclipse.uprotocol.transport.UListener;
 import org.eclipse.uprotocol.transport.UTransport;
+import org.eclipse.uprotocol.transport.builder.UMessageBuilder;
+import org.eclipse.uprotocol.uri.serializer.UriSerializer;
 import org.eclipse.uprotocol.v1.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -37,6 +42,8 @@ import java.nio.charset.Charset;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.eclipse.uprotocol.mqtt.HiveMqMQTT5Client.USER_PROPERTIES_KEY_FOR_SINK_NAME;
+import static org.eclipse.uprotocol.mqtt.HiveMqMQTT5Client.USER_PROPERTIES_KEY_FOR_SOURCE_NAME;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -78,43 +85,27 @@ class HiveMqIntegratedTest {
 
     @Test
     void givenValidClientAndMessage_whenInvokeSend_shouldSendCorrectMessageToMqtt() throws InterruptedException {
-        UMessage message = UMessage.newBuilder()
-                .setPayload(ByteString.copyFrom("Hello World", Charset.defaultCharset()))
-                .setAttributes(UAttributes.newBuilder()
-                        .setId(UUID.newBuilder().build())
-                        .setTtl(1000)
-                        .setReqid(UUID.newBuilder().build())
-                        .setToken("SomeToken")
-                        .setTraceparent("someTraceParent")
-                        .setSource(UUri.newBuilder()
-                                .setAuthorityName("testSource.someUri.network")
-                                .build())
-                        .setSink(UUri.newBuilder()
-                                .setAuthorityName("testDestination.someUri.network")
-                                .build())
-                        .build())
-                .build();
+        UMessage message = UMessageBuilder.request(
+                UUri.newBuilder().setAuthorityName("testSource.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(0).build(),
+                UUri.newBuilder().setAuthorityName("testDestination.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(1).build(), 500)
+                .withToken("SomeToken")
+                .withTraceparent("someTraceParent")
+                .build(new UPayload(ByteString.copyFrom("Hello World", Charset.defaultCharset()), UPayloadFormat.UPAYLOAD_FORMAT_TEXT));
 
         UStatus response = serviceUnderTest.send(message).toCompletableFuture().join();
         assertThat(response.getCode()).isEqualTo(UCode.OK);
-        Mqtt5Publish receive = handleToReceiveMqttMessages.receive(1, TimeUnit.SECONDS).get();
+
+        Mqtt5Publish receive = handleToReceiveMqttMessages.receive(1, TimeUnit.SECONDS).orElseThrow();
         assertThat(new String(receive.getPayloadAsBytes())).isEqualTo("Hello World");
     }
 
     @Test
     void givenValidClientAndSmallestMessage_whenInvokeSend_shouldSendCorrectMessageToMqtt() throws InterruptedException {
-        UMessage message = UMessage.newBuilder()
-                .setPayload(ByteString.copyFrom("Hello World", Charset.defaultCharset()))
-                .setAttributes(UAttributes.newBuilder()
-                        .setId(UUID.newBuilder().build())
-                        .setSource(UUri.newBuilder()
-                                .setAuthorityName("testSource.someUri.network")
-                                .build())
-                        .setSink(UUri.newBuilder()
-                                .setAuthorityName("testDestination.someUri.network")
-                                .build())
-                        .build())
-                .build();
+        UMessage message = UMessageBuilder.request(
+                        UUri.newBuilder().setAuthorityName("testSource.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(0).build(),
+                        UUri.newBuilder().setAuthorityName("testDestination.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(1).build(), 500)
+                .build(new UPayload(ByteString.copyFrom("Hello World", Charset.defaultCharset()), UPayloadFormat.UPAYLOAD_FORMAT_TEXT));
+
         UStatus response = serviceUnderTest.send(message).toCompletableFuture().join();
         assertThat(response.getCode()).isEqualTo(UCode.OK);
         Mqtt5Publish receive = handleToReceiveMqttMessages.receive(1, TimeUnit.SECONDS).get();
@@ -124,15 +115,11 @@ class HiveMqIntegratedTest {
     @Test
     @Disabled("Broadcast topic is not defined")
     void givenValidClientAndBroadcastMessage_whenInvokeSend_shouldSendCorrectMessageToMqtt() throws InterruptedException {
-        UMessage message = UMessage.newBuilder()
-                .setPayload(ByteString.copyFrom("Hello World", Charset.defaultCharset()))
-                .setAttributes(UAttributes.newBuilder()
-                        .setId(UUID.newBuilder().build())
-                        .setSource(UUri.newBuilder()
-                                .setAuthorityName("testSource.someUri.network")
-                                .build())
-                        .build())
-                .build();
+        UMessage message = UMessageBuilder.publish(
+                        UUri.newBuilder().setAuthorityName("testSource.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(0).build())
+                .build(new UPayload(ByteString.copyFrom("Hello World", Charset.defaultCharset()), UPayloadFormat.UPAYLOAD_FORMAT_TEXT));
+
+
         UStatus response = serviceUnderTest.send(message).toCompletableFuture().join();
         assertThat(response.getCode()).isEqualTo(UCode.OK);
         Mqtt5Publish receive = handleToReceiveMqttMessages.receive(1, TimeUnit.SECONDS).get();
@@ -145,15 +132,21 @@ class HiveMqIntegratedTest {
 
         UStatus status = serviceUnderTest.registerListener(null, listener).toCompletableFuture().join();
 
-        mqttClientForTests.publishWith().topic("a/some-source/c/d/e/some-sink/a/b/c").payload("Hello World".getBytes(Charset.defaultCharset())).send();
+        mqttClientForTests.publishWith().topic("a/some-source/c/d/e/some-sink/a/b/c")
+                .userProperties(Mqtt5UserProperties.of(
+                        Mqtt5UserProperty.of(USER_PROPERTIES_KEY_FOR_SOURCE_NAME, UriSerializer.serialize(UUri.newBuilder().setAuthorityName("testSource.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(0).build())),
+                        Mqtt5UserProperty.of(USER_PROPERTIES_KEY_FOR_SINK_NAME, UriSerializer.serialize(UUri.newBuilder().setAuthorityName("testDestination.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(1).build()))
+                ))
+                .payload("Hello World".getBytes(Charset.defaultCharset()))
+                .send();
 
         assertThat(status.getCode()).isEqualTo(UCode.OK);
 
         ArgumentCaptor<UMessage> captor = ArgumentCaptor.captor();
         verify(listener, Mockito.timeout(1000).times(1)).onReceive(captor.capture());
         assertThat(captor.getValue()).isNotNull();
-        assertThat(captor.getValue().getAttributes().getSink().getAuthorityName()).isEqualTo("some-sink");
-        assertThat(captor.getValue().getAttributes().getSource().getAuthorityName()).isEqualTo("some-source");
+        assertThat(captor.getValue().getAttributes().getSink().getAuthorityName()).isEqualTo("testDestination.someUri.network");
+        assertThat(captor.getValue().getAttributes().getSource().getAuthorityName()).isEqualTo("testSource.someUri.network");
         assertThat(captor.getValue().getPayload()).isNotNull();
         assertThat(captor.getValue().getPayload().toString(Charset.defaultCharset())).isEqualTo("Hello World");
     }
@@ -332,14 +325,14 @@ class HiveMqIntegratedTest {
     }
 
     @Test
-    void givenListener_whenReceivingUMessageWithAllFields_shouldRouteAllFieldsToListener() {
+    void givenListener_whenCloudSendsMessageToRadioAndRadioListens_shouldRouteMessageToRadio() {
         //given a radio and a cloudService
         UListener radioListener = mock(UListener.class);
         UUri radioUuid = UUri.newBuilder()
                 .setAuthorityName("radio")
                 .setUeId(0xffff)
                 .setUeVersionMajor(0xff)
-                .setResourceId(0xffff)
+                .setResourceId(0)
                 .build();
         UTransport mqttClientOfRadio = TransportFactory.createInstance(radioUuid, mqttClientForTests);
 
@@ -351,30 +344,19 @@ class HiveMqIntegratedTest {
                 .build();
         UTransport mqttClientOfCloud = TransportFactory.createInstance(cloudService, mqttClientForTests);
 
-        mqttClientOfRadio.registerListener(
-                cloudService,
-                radioUuid,
-                radioListener);
+        mqttClientOfRadio.registerListener(cloudService, radioUuid, radioListener);
 
         //when cloud service sends a message
-        mqttClientOfCloud.send(
-                UMessage.newBuilder()
-                        .setPayload(ByteString.copyFrom("Hello World", Charset.defaultCharset()))
-                        .setAttributes(UAttributes.newBuilder()
-                                .setId(UUID.newBuilder().setMsb(123L).build())
-                                .setType(UMessageType.UMESSAGE_TYPE_NOTIFICATION)
-                                .setSource(cloudService)
-                                .setSink(radioUuid)
-                                .setPriority(UPriority.UPRIORITY_CS0)
-                                .setTtl(1000)
-                                .setPermissionLevel(4211)
-                                .setCommstatus(UCode.OK)
-                                .setReqid(UUID.newBuilder().setMsb(456L).build())
-                                .setToken("SomeToken")
-                                .setTraceparent("someTraceParent")
-                                .setPayloadFormat(UPayloadFormat.UPAYLOAD_FORMAT_TEXT)
-                                .build())
-                        .build());
+
+        UMessage message = UMessageBuilder.notification(cloudService, radioUuid)
+                .withPriority(UPriority.UPRIORITY_CS2)
+                .withTtl(1000)
+                .withPermissionLevel(4211)
+                .withToken("SomeToken")
+                .withTraceparent("someTraceParent")
+                .build(new UPayload(ByteString.copyFrom("Hello World", Charset.defaultCharset()), UPayloadFormat.UPAYLOAD_FORMAT_TEXT));
+
+        mqttClientOfCloud.send(message);
 
         //should be received by radio
         ArgumentCaptor<UMessage> captor = ArgumentCaptor.captor();
@@ -383,15 +365,13 @@ class HiveMqIntegratedTest {
         UMessage receivedMessage = captor.getValue();
 
         assertThat(receivedMessage.getPayload().toString(Charset.defaultCharset())).isEqualTo("Hello World");
-        assertThat(receivedMessage.getAttributes().getId().getMsb()).isEqualTo(123L);
         assertThat(receivedMessage.getAttributes().getType()).isEqualTo(UMessageType.UMESSAGE_TYPE_NOTIFICATION);
         assertThat(receivedMessage.getAttributes().getSource().getAuthorityName()).isEqualTo("cloud");
         assertThat(receivedMessage.getAttributes().getSink().getAuthorityName()).isEqualTo("radio");
-        assertThat(receivedMessage.getAttributes().getPriority()).isEqualTo(UPriority.UPRIORITY_CS0);
+        assertThat(receivedMessage.getAttributes().getPriority()).isEqualTo(UPriority.UPRIORITY_CS2);
         assertThat(receivedMessage.getAttributes().getTtl()).isEqualTo(1000);
         assertThat(receivedMessage.getAttributes().getPermissionLevel()).isEqualTo(4211);
         assertThat(receivedMessage.getAttributes().getCommstatus()).isEqualTo(UCode.OK);
-        assertThat(receivedMessage.getAttributes().getReqid()).isEqualTo(UUID.newBuilder().setMsb(456L).build());
         assertThat(receivedMessage.getAttributes().getToken()).isEqualTo("SomeToken");
         assertThat(receivedMessage.getAttributes().getTraceparent()).isEqualTo("someTraceParent");
         assertThat(receivedMessage.getAttributes().getPayloadFormat()).isEqualTo(UPayloadFormat.UPAYLOAD_FORMAT_TEXT);
