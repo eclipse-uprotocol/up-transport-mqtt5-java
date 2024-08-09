@@ -14,7 +14,9 @@ package org.eclipse.uprotocol.mqtt;
 
 import com.google.protobuf.ByteString;
 import com.hivemq.client.mqtt.datatypes.MqttTopic;
+import com.hivemq.client.mqtt.datatypes.MqttTopicBuilder;
 import com.hivemq.client.mqtt.datatypes.MqttTopicFilter;
+import com.hivemq.client.mqtt.datatypes.MqttTopicFilterBuilder;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5AsyncClient;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
 import com.hivemq.client.mqtt.mqtt5.datatypes.Mqtt5UserProperties;
@@ -25,6 +27,7 @@ import com.hivemq.client.mqtt.mqtt5.message.publish.Mqtt5PublishResult;
 import org.eclipse.uprotocol.transport.UListener;
 import org.eclipse.uprotocol.transport.UTransport;
 import org.eclipse.uprotocol.transport.validate.UAttributesValidator;
+import org.eclipse.uprotocol.uri.factory.UriFactory;
 import org.eclipse.uprotocol.uri.serializer.UriSerializer;
 import org.eclipse.uprotocol.uuid.serializer.UuidSerializer;
 import org.eclipse.uprotocol.v1.*;
@@ -104,7 +107,7 @@ class HiveMqMQTT5Client implements UTransport {
     @SuppressWarnings("ResultOfMethodCallIgnored")
     private Mqtt5PublishBuilder.Send.@NotNull Complete<CompletableFuture<Mqtt5PublishResult>> buildMqttSendHandle(UMessage uMessage, Mqtt5UserProperties userProperties) {
         Mqtt5PublishBuilder.Send.Complete<CompletableFuture<Mqtt5PublishResult>> sendHandle = client.publishWith()
-                .topic(getTopicForSending(uMessage.getAttributes().getSource(), uMessage.getAttributes().getSink()))
+                .topic(getTopicForSending(uMessage.getAttributes().getSource(), uMessage.getAttributes().hasSink() ? uMessage.getAttributes().getSink() : null))
                 .payload(uMessage.getPayload().toByteArray())
                 .userProperties(userProperties);
 
@@ -224,40 +227,47 @@ class HiveMqMQTT5Client implements UTransport {
     }
 
     private @NotNull MqttTopic getTopicForSending(@NotNull UUri source, @Nullable UUri sink) {
-        return MqttTopic.builder()
+        MqttTopicBuilder.Complete build = MqttTopic.builder()
                 .addLevel(String.valueOf(determinateClientIdentifierFromSource(source)))
 
                 .addLevel(source.getAuthorityName())
                 .addLevel(String.format("%04x", source.getUeId()))
                 .addLevel(String.format("%02x", source.getUeVersionMajor()))
-                .addLevel(String.format("%04x", source.getResourceId()))
-
-                .addLevel(Optional.ofNullable(sink).map(UUri::getAuthorityName).orElse(""))
-                .addLevel(Optional.ofNullable(sink).map(UUri::getUeId).map(ueId -> String.format("%04x", ueId)).orElse(""))
-                .addLevel(Optional.ofNullable(sink).map(UUri::getUeVersionMajor).map(majorVersion -> String.format("%02x", majorVersion)).orElse(""))
-                .addLevel(Optional.ofNullable(sink).map(UUri::getResourceId).map(resourceId -> String.format("%04x", resourceId)).orElse(""))
-
+                .addLevel(String.format("%04x", source.getResourceId()));
+        if (sink != null) {
+            build = build
+                    .addLevel(Optional.of(sink).map(UUri::getAuthorityName).orElse(""))
+                    .addLevel(Optional.of(sink).map(UUri::getUeId).map(ueId -> String.format("%04x", ueId)).orElse(""))
+                    .addLevel(Optional.of(sink).map(UUri::getUeVersionMajor).map(majorVersion -> String.format("%02x", majorVersion)).orElse(""))
+                    .addLevel(Optional.of(sink).map(UUri::getResourceId).map(resourceId -> String.format("%04x", resourceId)).orElse(""));
+        } else {
+            LOG.trace("no sink defined, therefor sink topics ar e removed (req. since up-spec 1.6.0)");
+        }
+        return build
                 .build();
     }
 
     private @NotNull MqttTopicFilter getTopicFilterForReceiving(@Nullable UUri source, @Nullable UUri sink) {
         String singleLevelWildcardAsString = String.valueOf(MqttTopicFilter.SINGLE_LEVEL_WILDCARD);
-        return MqttTopicFilter.builder()
+        MqttTopicFilterBuilder.Complete builder = MqttTopicFilter.builder()
                 .addLevel(String.valueOf(determinateClientIdentifierFromSource(source)))
 
                 //if source is null or predefined wildcard -> choose singleLevelWildcardAsString, otherwise choose value (the code is the other way around)
                 .addLevel(Optional.ofNullable(source).filter(_source -> !"*".equals(_source.getAuthorityName())).map(UUri::getAuthorityName).orElse(singleLevelWildcardAsString))
                 .addLevel(Optional.ofNullable(source).filter(_source -> _source.getUeId() != 0xffff).map(existingSource -> String.format("%04x", existingSource.getUeId())).orElse(singleLevelWildcardAsString))
                 .addLevel(Optional.ofNullable(source).filter(_source -> _source.getUeVersionMajor() != 0xff).map(UUri::getUeVersionMajor).map(Object::toString).orElse(singleLevelWildcardAsString))
-                .addLevel(Optional.ofNullable(source).filter(_source -> _source.getResourceId() != 0xffff).map(UUri::getResourceId).map(i -> String.format("%04x", i)).orElse(singleLevelWildcardAsString))
+                .addLevel(Optional.ofNullable(source).filter(_source -> _source.getResourceId() != 0xffff).map(UUri::getResourceId).map(i -> String.format("%04x", i)).orElse(singleLevelWildcardAsString));
 
-                //if sink is null or predefined wildcard -> choose singleLevelWildcardAsString, otherwise choose value (the code is the other way around)
-                .addLevel(Optional.ofNullable(sink).filter(_sink -> !"*".equals(_sink.getAuthorityName())).map(UUri::getAuthorityName).orElse(singleLevelWildcardAsString))
-                .addLevel(Optional.ofNullable(sink).filter(_sink -> _sink.getUeId() != 0xffff).map(existingSource -> String.format("%04x", existingSource.getUeId())).orElse(singleLevelWildcardAsString))
-                .addLevel(Optional.ofNullable(sink).filter(_sink -> _sink.getUeVersionMajor() != 0xff).map(UUri::getUeVersionMajor).map(Object::toString).orElse(singleLevelWildcardAsString))
-                .addLevel(Optional.ofNullable(sink).filter(_sink -> _sink.getResourceId() != 0xffff).map(UUri::getResourceId).map(i -> String.format("%04x", i)).orElse(singleLevelWildcardAsString))
-
-                .build();
+        if (sink == null || UriFactory.ANY.equals(sink)) {
+            builder.addLevel(String.valueOf(MqttTopicFilter.MULTI_LEVEL_WILDCARD));
+        } else {
+            builder = builder
+                    .addLevel(Optional.of(sink).filter(_sink -> !"*".equals(_sink.getAuthorityName())).map(UUri::getAuthorityName).orElse(singleLevelWildcardAsString))
+                    .addLevel(Optional.of(sink).filter(_sink -> _sink.getUeId() != 0xffff).map(existingSource -> String.format("%04x", existingSource.getUeId())).orElse(singleLevelWildcardAsString))
+                    .addLevel(Optional.of(sink).filter(_sink -> _sink.getUeVersionMajor() != 0xff).map(UUri::getUeVersionMajor).map(Object::toString).orElse(singleLevelWildcardAsString))
+                    .addLevel(Optional.of(sink).filter(_sink -> _sink.getResourceId() != 0xffff).map(UUri::getResourceId).map(i -> String.format("%04x", i)).orElse(singleLevelWildcardAsString));
+        }
+        return builder.build();
     }
 
     private char determinateClientIdentifierFromSource(UUri source) {
@@ -271,7 +281,7 @@ class HiveMqMQTT5Client implements UTransport {
     }
 
     private UAttributes extractUAttributesFromReceivedMQTTMessage(@NotNull Mqtt5Publish mqtt5Publish) {
-        if (mqtt5Publish.getTopic().getLevels().size() != 9)
+        if (mqtt5Publish.getTopic().getLevels().size() != 9 && mqtt5Publish.getTopic().getLevels().size() != 5)
             throw new IllegalArgumentException("Topic did not match uProtocol pattern for mqtt messages of this spec");
 
         Map<String, String> userProperties = convertUserPropertiesToMap(mqtt5Publish.getUserProperties());

@@ -20,7 +20,7 @@
     <artifactId>up-client-mqtt5-java</artifactId>
     <name>MQTT5 Transport Library for uProtocol with java</name>
     <description>MQTT5 Transport Library for uProtocol with java</description>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.2.0-alpha-SNAPSHOT</version>
     <packaging>jar</packaging>
     <url>https://github.com/eclipse-uprotocol/up-client-mqtt5-java/</url>
 

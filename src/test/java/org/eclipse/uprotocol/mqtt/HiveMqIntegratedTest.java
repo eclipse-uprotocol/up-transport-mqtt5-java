@@ -23,6 +23,7 @@ import org.eclipse.uprotocol.communication.UPayload;
 import org.eclipse.uprotocol.transport.UListener;
 import org.eclipse.uprotocol.transport.UTransport;
 import org.eclipse.uprotocol.transport.builder.UMessageBuilder;
+import org.eclipse.uprotocol.uri.factory.UriFactory;
 import org.eclipse.uprotocol.uri.serializer.UriSerializer;
 import org.eclipse.uprotocol.v1.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +40,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.nio.charset.Charset;
+import java.util.Calendar;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -113,10 +115,8 @@ class HiveMqIntegratedTest {
     }
 
     @Test
-    @Disabled("Broadcast topic is not defined")
     void givenValidClientAndBroadcastMessage_whenInvokeSend_shouldSendCorrectMessageToMqtt() throws InterruptedException {
-        UMessage message = UMessageBuilder.publish(
-                        UUri.newBuilder().setAuthorityName("testSource.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(0).build())
+        UMessage message = UMessageBuilder.publish(UUri.newBuilder().setAuthorityName("testSource.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(0x8001).build())
                 .build(new UPayload(ByteString.copyFrom("Hello World", Charset.defaultCharset()), UPayloadFormat.UPAYLOAD_FORMAT_TEXT));
 
 
@@ -124,6 +124,7 @@ class HiveMqIntegratedTest {
         assertThat(response.getCode()).isEqualTo(UCode.OK);
         Mqtt5Publish receive = handleToReceiveMqttMessages.receive(1, TimeUnit.SECONDS).get();
         assertThat(new String(receive.getPayloadAsBytes())).isEqualTo("Hello World");
+        assertThat(receive.getTopic().toString()).isEqualTo("d/testSource.someUri.network/0002/01/8001");
     }
 
     @Test
@@ -169,13 +170,12 @@ class HiveMqIntegratedTest {
     }
 
     @Test
-    @Disabled("Broadcast topic is not defined")
     void givenBlancoListener_whenAddingListenerAndReceivingBroadcastMessages_shouldCallListener() {
         UListener listener = mock(UListener.class);
 
         UStatus status = serviceUnderTest.registerListener(null, listener).toCompletableFuture().join();
 
-        mqttClientForTests.publishWith().topic("a/some-source/c/d/e////").payload("Hello World".getBytes(Charset.defaultCharset())).send();
+        mqttClientForTests.publishWith().topic("a/some-source/c/d/e").payload("Hello World".getBytes(Charset.defaultCharset())).send();
 
         assertThat(status.getCode()).isEqualTo(UCode.OK);
 
