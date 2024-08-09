@@ -24,7 +24,7 @@ jobs:
         server-password: OSSRH_PASSWORD
 
     - name: Build and Publish to OSSRH snapshot repo
-      run: mvn clean deploy
+      run: ./mvnw clean deploy
       env:
         OSSRH_USER: ${{ secrets.ORG_OSSRH_USERNAME }}
         OSSRH_PASSWORD: ${{ secrets.ORG_OSSRH_PASSWORD }}
