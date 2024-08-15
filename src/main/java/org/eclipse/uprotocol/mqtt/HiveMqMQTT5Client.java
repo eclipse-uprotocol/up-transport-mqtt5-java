@@ -14,7 +14,9 @@ package org.eclipse.uprotocol.mqtt;
 
 import com.google.protobuf.ByteString;
 import com.hivemq.client.mqtt.datatypes.MqttTopic;
+import com.hivemq.client.mqtt.datatypes.MqttTopicBuilder;
 import com.hivemq.client.mqtt.datatypes.MqttTopicFilter;
+import com.hivemq.client.mqtt.datatypes.MqttTopicFilterBuilder;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5AsyncClient;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
 import com.hivemq.client.mqtt.mqtt5.datatypes.Mqtt5UserProperties;
@@ -25,6 +27,7 @@ import com.hivemq.client.mqtt.mqtt5.message.publish.Mqtt5PublishResult;
 import org.eclipse.uprotocol.transport.UListener;
 import org.eclipse.uprotocol.transport.UTransport;
 import org.eclipse.uprotocol.transport.validate.UAttributesValidator;
+import org.eclipse.uprotocol.uri.factory.UriFactory;
 import org.eclipse.uprotocol.uri.serializer.UriSerializer;
 import org.eclipse.uprotocol.uuid.serializer.UuidSerializer;
 import org.eclipse.uprotocol.v1.*;
@@ -45,19 +48,7 @@ import static org.eclipse.uprotocol.v1.UCode.OK;
 
 class HiveMqMQTT5Client implements UTransport {
 
-    private static final Logger LOG = LoggerFactory.getLogger(HiveMqMQTT5Client.class);
-    private static final String USER_PROPERTIES_KEY_FOR_ID = "1";
-    private static final String USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE = "2";
-    private static final String USER_PROPERTIES_KEY_FOR_SOURCE_NAME = "3";
-    private static final String USER_PROPERTIES_KEY_FOR_SINK_NAME = "4";
-    private static final String USER_PROPERTIES_KEY_FOR_PRIORITY = "5";
-    private static final String USER_PROPERTIES_KEY_FOR_TTL = "6";
-    private static final String USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL = "7";
-    private static final String USER_PROPERTIES_KEY_FOR_COMMSTATUS = "8";
-    private static final String USER_PROPERTIES_KEY_FOR_REQID = "9";
-    private static final String USER_PROPERTIES_KEY_FOR_TOKEN = "10";
-    private static final String USER_PROPERTIES_KEY_FOR_TRACEPARENT = "11";
-    private static final String USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT = "12";
+    public static final Logger LOG = LoggerFactory.getLogger(HiveMqMQTT5Client.class);
     private final Mqtt5AsyncClient client;
     private final UUri source;
 
@@ -69,18 +60,21 @@ class HiveMqMQTT5Client implements UTransport {
     @Override
     public CompletionStage<UStatus> send(UMessage uMessage) {
         LOG.trace("should send a message:\n{}", uMessage);
-        CompletableFuture<UStatus> result = new CompletableFuture<>();
 
         UAttributesValidator validator = UAttributesValidator.getValidator(uMessage.getAttributes());
         ValidationResult validationResult = validator.validate(uMessage.getAttributes());
         if (validationResult.isFailure()) {
             throw new IllegalArgumentException("Invalid message attributes: " + validationResult);
         }
+        if(uMessage.getAttributes().hasTtl() && uMessage.getAttributes().getTtl() < 500){
+            throw new IllegalArgumentException("TimeToLive needs to be at least 500ms. All smaller ttls will be dropped immediately by hiveMq");
+        }
 
         Mqtt5UserProperties userProperties = buildUserProperties(uMessage.getAttributes());
 
         Mqtt5PublishBuilder.Send.Complete<CompletableFuture<Mqtt5PublishResult>> sendHandle = buildMqttSendHandle(uMessage, userProperties);
 
+        CompletableFuture<UStatus> result = new CompletableFuture<>();
         sendHandle
                 .send()
                 .whenCompleteAsync((mqtt5PublishResult, throwable) -> {
@@ -101,7 +95,7 @@ class HiveMqMQTT5Client implements UTransport {
     @SuppressWarnings("ResultOfMethodCallIgnored")
     private Mqtt5PublishBuilder.Send.@NotNull Complete<CompletableFuture<Mqtt5PublishResult>> buildMqttSendHandle(UMessage uMessage, Mqtt5UserProperties userProperties) {
         Mqtt5PublishBuilder.Send.Complete<CompletableFuture<Mqtt5PublishResult>> sendHandle = client.publishWith()
-                .topic(getTopicForSending(uMessage.getAttributes().getSource(), uMessage.getAttributes().getSink()))
+                .topic(getTopicForSending(uMessage.getAttributes().getSource(), uMessage.getAttributes().hasSink() ? uMessage.getAttributes().getSink() : null))
                 .payload(uMessage.getPayload().toByteArray())
                 .userProperties(userProperties);
 
@@ -116,40 +110,40 @@ class HiveMqMQTT5Client implements UTransport {
         Mqtt5UserPropertiesBuilder builder = Mqtt5UserProperties.builder();
         builder.add("0", "1");
         if (attributes.hasId())
-            builder.add(USER_PROPERTIES_KEY_FOR_ID, UuidSerializer.serialize(attributes.getId()));
+            builder.add(String.valueOf(UAttributes.ID_FIELD_NUMBER), UuidSerializer.serialize(attributes.getId()));
 
         if(attributes.getType() != UMessageType.UMESSAGE_TYPE_UNSPECIFIED)
-            builder.add(USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE, Integer.toString(attributes.getTypeValue()));
+            builder.add(String.valueOf(UAttributes.TYPE_FIELD_NUMBER), Integer.toString(attributes.getTypeValue()));
 
         if(attributes.hasSource())
-            builder.add(USER_PROPERTIES_KEY_FOR_SOURCE_NAME, UriSerializer.serialize(attributes.getSource()));
+            builder.add(String.valueOf(UAttributes.SOURCE_FIELD_NUMBER), UriSerializer.serialize(attributes.getSource()));
 
         if(attributes.hasSink())
-            builder.add(USER_PROPERTIES_KEY_FOR_SINK_NAME, UriSerializer.serialize(attributes.getSink()));
+            builder.add(String.valueOf(UAttributes.SINK_FIELD_NUMBER), UriSerializer.serialize(attributes.getSink()));
 
         if(attributes.getPriority() != UPriority.UPRIORITY_UNSPECIFIED)
-            builder.add(USER_PROPERTIES_KEY_FOR_PRIORITY, Integer.toString(attributes.getPriorityValue()));
+            builder.add(String.valueOf(UAttributes.PRIORITY_FIELD_NUMBER), Integer.toString(attributes.getPriorityValue()));
 
         if (attributes.hasTtl())
-            builder.add(USER_PROPERTIES_KEY_FOR_TTL, Integer.toString(attributes.getTtl()));
+            builder.add(String.valueOf(UAttributes.TTL_FIELD_NUMBER), Integer.toString(attributes.getTtl()));
 
         if(attributes.hasPermissionLevel())
-            builder.add(USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL, Integer.toString(attributes.getPermissionLevel()));
+            builder.add(String.valueOf(UAttributes.PERMISSION_LEVEL_FIELD_NUMBER), Integer.toString(attributes.getPermissionLevel()));
 
         if(attributes.hasCommstatus())
-            builder.add(USER_PROPERTIES_KEY_FOR_COMMSTATUS, Integer.toString(attributes.getCommstatusValue()));
+            builder.add(String.valueOf(UAttributes.COMMSTATUS_FIELD_NUMBER), Integer.toString(attributes.getCommstatusValue()));
 
         if(attributes.hasReqid())
-            builder.add(USER_PROPERTIES_KEY_FOR_REQID, UuidSerializer.serialize(attributes.getReqid()));
+            builder.add(String.valueOf(UAttributes.REQID_FIELD_NUMBER), UuidSerializer.serialize(attributes.getReqid()));
 
         if(attributes.hasToken())
-            builder.add(USER_PROPERTIES_KEY_FOR_TOKEN, attributes.getToken());
+            builder.add(String.valueOf(UAttributes.TOKEN_FIELD_NUMBER), attributes.getToken());
 
         if(attributes.hasTraceparent())
-            builder.add(USER_PROPERTIES_KEY_FOR_TRACEPARENT, attributes.getTraceparent());
+            builder.add(String.valueOf(UAttributes.TRACEPARENT_FIELD_NUMBER), attributes.getTraceparent());
 
         if(attributes.getPayloadFormat() != UPayloadFormat.UPAYLOAD_FORMAT_UNSPECIFIED)
-            builder.add(USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT, Integer.toString(attributes.getPayloadFormatValue()));
+            builder.add(String.valueOf(UAttributes.PAYLOAD_FORMAT_FIELD_NUMBER), Integer.toString(attributes.getPayloadFormatValue()));
 
         return builder.build();
     }
@@ -221,40 +215,47 @@ class HiveMqMQTT5Client implements UTransport {
     }
 
     private @NotNull MqttTopic getTopicForSending(@NotNull UUri source, @Nullable UUri sink) {
-        return MqttTopic.builder()
+        MqttTopicBuilder.Complete build = MqttTopic.builder()
                 .addLevel(String.valueOf(determinateClientIdentifierFromSource(source)))
 
                 .addLevel(source.getAuthorityName())
                 .addLevel(String.format("%04x", source.getUeId()))
                 .addLevel(String.format("%02x", source.getUeVersionMajor()))
-                .addLevel(String.format("%04x", source.getResourceId()))
-
-                .addLevel(Optional.ofNullable(sink).map(UUri::getAuthorityName).orElse(""))
-                .addLevel(Optional.ofNullable(sink).map(UUri::getUeId).map(ueId -> String.format("%04x", ueId)).orElse(""))
-                .addLevel(Optional.ofNullable(sink).map(UUri::getUeVersionMajor).map(majorVersion -> String.format("%02x", majorVersion)).orElse(""))
-                .addLevel(Optional.ofNullable(sink).map(UUri::getResourceId).map(resourceId -> String.format("%04x", resourceId)).orElse(""))
-
+                .addLevel(String.format("%04x", source.getResourceId()));
+        if (sink != null) {
+            build = build
+                    .addLevel(Optional.of(sink).map(UUri::getAuthorityName).orElse(""))
+                    .addLevel(Optional.of(sink).map(UUri::getUeId).map(ueId -> String.format("%04x", ueId)).orElse(""))
+                    .addLevel(Optional.of(sink).map(UUri::getUeVersionMajor).map(majorVersion -> String.format("%02x", majorVersion)).orElse(""))
+                    .addLevel(Optional.of(sink).map(UUri::getResourceId).map(resourceId -> String.format("%04x", resourceId)).orElse(""));
+        } else {
+            LOG.trace("no sink defined, therefor sink topics ar e removed (req. since up-spec 1.6.0)");
+        }
+        return build
                 .build();
     }
 
     private @NotNull MqttTopicFilter getTopicFilterForReceiving(@Nullable UUri source, @Nullable UUri sink) {
         String singleLevelWildcardAsString = String.valueOf(MqttTopicFilter.SINGLE_LEVEL_WILDCARD);
-        return MqttTopicFilter.builder()
+        MqttTopicFilterBuilder.Complete builder = MqttTopicFilter.builder()
                 .addLevel(String.valueOf(determinateClientIdentifierFromSource(source)))
 
                 //if source is null or predefined wildcard -> choose singleLevelWildcardAsString, otherwise choose value (the code is the other way around)
                 .addLevel(Optional.ofNullable(source).filter(_source -> !"*".equals(_source.getAuthorityName())).map(UUri::getAuthorityName).orElse(singleLevelWildcardAsString))
                 .addLevel(Optional.ofNullable(source).filter(_source -> _source.getUeId() != 0xffff).map(existingSource -> String.format("%04x", existingSource.getUeId())).orElse(singleLevelWildcardAsString))
                 .addLevel(Optional.ofNullable(source).filter(_source -> _source.getUeVersionMajor() != 0xff).map(UUri::getUeVersionMajor).map(Object::toString).orElse(singleLevelWildcardAsString))
-                .addLevel(Optional.ofNullable(source).filter(_source -> _source.getResourceId() != 0xffff).map(UUri::getResourceId).map(i -> String.format("%04x", i)).orElse(singleLevelWildcardAsString))
+                .addLevel(Optional.ofNullable(source).filter(_source -> _source.getResourceId() != 0xffff).map(UUri::getResourceId).map(i -> String.format("%04x", i)).orElse(singleLevelWildcardAsString));
 
-                //if sink is null or predefined wildcard -> choose singleLevelWildcardAsString, otherwise choose value (the code is the other way around)
-                .addLevel(Optional.ofNullable(sink).filter(_sink -> !"*".equals(_sink.getAuthorityName())).map(UUri::getAuthorityName).orElse(singleLevelWildcardAsString))
-                .addLevel(Optional.ofNullable(sink).filter(_sink -> _sink.getUeId() != 0xffff).map(existingSource -> String.format("%04x", existingSource.getUeId())).orElse(singleLevelWildcardAsString))
-                .addLevel(Optional.ofNullable(sink).filter(_sink -> _sink.getUeVersionMajor() != 0xff).map(UUri::getUeVersionMajor).map(Object::toString).orElse(singleLevelWildcardAsString))
-                .addLevel(Optional.ofNullable(sink).filter(_sink -> _sink.getResourceId() != 0xffff).map(UUri::getResourceId).map(i -> String.format("%04x", i)).orElse(singleLevelWildcardAsString))
-
-                .build();
+        if (sink == null || UriFactory.ANY.equals(sink)) {
+            builder.addLevel(String.valueOf(MqttTopicFilter.MULTI_LEVEL_WILDCARD));
+        } else {
+            builder = builder
+                    .addLevel(Optional.of(sink).filter(_sink -> !"*".equals(_sink.getAuthorityName())).map(UUri::getAuthorityName).orElse(singleLevelWildcardAsString))
+                    .addLevel(Optional.of(sink).filter(_sink -> _sink.getUeId() != 0xffff).map(existingSource -> String.format("%04x", existingSource.getUeId())).orElse(singleLevelWildcardAsString))
+                    .addLevel(Optional.of(sink).filter(_sink -> _sink.getUeVersionMajor() != 0xff).map(UUri::getUeVersionMajor).map(Object::toString).orElse(singleLevelWildcardAsString))
+                    .addLevel(Optional.of(sink).filter(_sink -> _sink.getResourceId() != 0xffff).map(UUri::getResourceId).map(i -> String.format("%04x", i)).orElse(singleLevelWildcardAsString));
+        }
+        return builder.build();
     }
 
     private char determinateClientIdentifierFromSource(UUri source) {
@@ -268,7 +269,7 @@ class HiveMqMQTT5Client implements UTransport {
     }
 
     private UAttributes extractUAttributesFromReceivedMQTTMessage(@NotNull Mqtt5Publish mqtt5Publish) {
-        if (mqtt5Publish.getTopic().getLevels().size() != 9)
+        if (mqtt5Publish.getTopic().getLevels().size() != 9 && mqtt5Publish.getTopic().getLevels().size() != 5)
             throw new IllegalArgumentException("Topic did not match uProtocol pattern for mqtt messages of this spec");
 
         Map<String, String> userProperties = convertUserPropertiesToMap(mqtt5Publish.getUserProperties());
@@ -281,29 +282,30 @@ class HiveMqMQTT5Client implements UTransport {
             } catch (NumberFormatException e) {
                 LOG.trace("value is not a number {}", value);
             }
-            switch (key) {
-                case USER_PROPERTIES_KEY_FOR_ID -> builder.setId(UuidSerializer.deserialize(value));
-                case USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE ->
-                        valueAsInt.map(UMessageType::forNumber).ifPresent(builder::setType);
-                case USER_PROPERTIES_KEY_FOR_SOURCE_NAME -> builder.setSource(UriSerializer.deserialize(value));
-                case USER_PROPERTIES_KEY_FOR_SINK_NAME ->  builder.setSink(UriSerializer.deserialize(value));
-                case USER_PROPERTIES_KEY_FOR_PRIORITY ->
-                        valueAsInt.map(UPriority::forNumber).ifPresent(builder::setPriority);
-                case USER_PROPERTIES_KEY_FOR_TTL ->
-                        valueAsInt.ifPresent(builder::setTtl);
-                case USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL ->
-                        valueAsInt.ifPresent(builder::setPermissionLevel);
-                case USER_PROPERTIES_KEY_FOR_COMMSTATUS ->
-                        valueAsInt.map(UCode::forNumber).ifPresent(builder::setCommstatus);
-                case USER_PROPERTIES_KEY_FOR_REQID -> builder.setReqid(UuidSerializer.deserialize(value));
-                case USER_PROPERTIES_KEY_FOR_TOKEN ->
-                        builder.setToken(value);
-                case USER_PROPERTIES_KEY_FOR_TRACEPARENT ->
-                        builder.setTraceparent(value);
-                case USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT ->
-                        valueAsInt.map(UPayloadFormat::forNumber).ifPresent(builder::setPayloadFormat);
+            int keyAsNumber;
+            try {
+                keyAsNumber = Integer.parseInt(key);
+            } catch (NumberFormatException e) {
+                LOG.error("key is not a number {}", key);
+                return;
+            }
+            //@formatter:off
+            switch (keyAsNumber) {
+                case UAttributes.ID_FIELD_NUMBER -> builder.setId(UuidSerializer.deserialize(value));
+                case UAttributes.TYPE_FIELD_NUMBER -> valueAsInt.map(UMessageType::forNumber).ifPresent(builder::setType);
+                case UAttributes.SOURCE_FIELD_NUMBER -> builder.setSource(UriSerializer.deserialize(value));
+                case UAttributes.SINK_FIELD_NUMBER ->  builder.setSink(UriSerializer.deserialize(value));
+                case UAttributes.PRIORITY_FIELD_NUMBER -> valueAsInt.map(UPriority::forNumber).ifPresent(builder::setPriority);
+                case UAttributes.TTL_FIELD_NUMBER -> valueAsInt.ifPresent(builder::setTtl);
+                case UAttributes.PERMISSION_LEVEL_FIELD_NUMBER -> valueAsInt.ifPresent(builder::setPermissionLevel);
+                case UAttributes.COMMSTATUS_FIELD_NUMBER -> valueAsInt.map(UCode::forNumber).ifPresent(builder::setCommstatus);
+                case UAttributes.REQID_FIELD_NUMBER -> builder.setReqid(UuidSerializer.deserialize(value));
+                case UAttributes.TOKEN_FIELD_NUMBER -> builder.setToken(value);
+                case UAttributes.TRACEPARENT_FIELD_NUMBER -> builder.setTraceparent(value);
+                case UAttributes.PAYLOAD_FORMAT_FIELD_NUMBER -> valueAsInt.map(UPayloadFormat::forNumber).ifPresent(builder::setPayloadFormat);
                 default -> LOG.warn("unknown user properties for key {}", key);
             }
+            //@formatter:on
         });
 
         return builder.build();

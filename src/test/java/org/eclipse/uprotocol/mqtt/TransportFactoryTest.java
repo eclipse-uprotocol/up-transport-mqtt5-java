@@ -12,14 +12,19 @@
  */
 package org.eclipse.uprotocol.mqtt;
 
+import com.hivemq.client.mqtt.mqtt5.Mqtt5BlockingClient;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
+import com.hivemq.client.mqtt.mqtt5.Mqtt5ClientConfig;
+import com.hivemq.client.mqtt.mqtt5.Mqtt5ClientConnectionConfig;
 import org.eclipse.uprotocol.transport.UTransport;
 import org.eclipse.uprotocol.v1.UUri;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
 class TransportFactoryTest {
 
@@ -34,11 +39,29 @@ class TransportFactoryTest {
     @Test
     void givenValidClient_whenInvokeCreateInstance_shouldReturnInstanceOfUTransport() {
         Mqtt5Client mockedClient = mock(Mqtt5Client.class);
+        Mqtt5ClientConfig mockedConfig = mock(Mqtt5ClientConfig.class);
+        doReturn(mockedConfig).when(mockedClient).getConfig();
+        doReturn(Optional.of(mock(Mqtt5ClientConnectionConfig.class))).when(mockedConfig).getConnectionConfig();
 
         var result = TransportFactory.createInstance(mock(UUri.class), mockedClient);
 
         assertThat(result)
                 .isInstanceOf(HiveMqMQTT5Client.class)
                 .isInstanceOf(UTransport.class);
+    }
+
+    @Test
+    void givenNotConnectedClient_whenInvokeCreateInstance_shouldInvokeConnect() {
+        Mqtt5Client mockedClient = mock(Mqtt5Client.class);
+        doReturn(mock(Mqtt5ClientConfig.class)).when(mockedClient).getConfig();
+        Mqtt5BlockingClient mockedInnerClient = mock(Mqtt5BlockingClient.class);
+        doReturn(mockedInnerClient).when(mockedClient).toBlocking();
+
+        var result = TransportFactory.createInstance(mock(UUri.class), mockedClient);
+
+        assertThat(result)
+                .isInstanceOf(HiveMqMQTT5Client.class)
+                .isInstanceOf(UTransport.class);
+        verify(mockedInnerClient).connect();
     }
 }
