@@ -23,7 +23,6 @@ import org.eclipse.uprotocol.communication.UPayload;
 import org.eclipse.uprotocol.transport.UListener;
 import org.eclipse.uprotocol.transport.UTransport;
 import org.eclipse.uprotocol.transport.builder.UMessageBuilder;
-import org.eclipse.uprotocol.uri.factory.UriFactory;
 import org.eclipse.uprotocol.uri.serializer.UriSerializer;
 import org.eclipse.uprotocol.v1.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,12 +39,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.nio.charset.Charset;
-import java.util.Calendar;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.eclipse.uprotocol.mqtt.HiveMqMQTT5Client.USER_PROPERTIES_KEY_FOR_SINK_NAME;
-import static org.eclipse.uprotocol.mqtt.HiveMqMQTT5Client.USER_PROPERTIES_KEY_FOR_SOURCE_NAME;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -135,8 +131,8 @@ class HiveMqIntegratedTest {
 
         mqttClientForTests.publishWith().topic("a/some-source/c/d/e/some-sink/a/b/c")
                 .userProperties(Mqtt5UserProperties.of(
-                        Mqtt5UserProperty.of(USER_PROPERTIES_KEY_FOR_SOURCE_NAME, UriSerializer.serialize(UUri.newBuilder().setAuthorityName("testSource.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(0).build())),
-                        Mqtt5UserProperty.of(USER_PROPERTIES_KEY_FOR_SINK_NAME, UriSerializer.serialize(UUri.newBuilder().setAuthorityName("testDestination.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(1).build()))
+                        Mqtt5UserProperty.of(String.valueOf(UAttributes.SOURCE_FIELD_NUMBER), UriSerializer.serialize(UUri.newBuilder().setAuthorityName("testSource.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(0).build())),
+                        Mqtt5UserProperty.of(String.valueOf(UAttributes.SINK_FIELD_NUMBER), UriSerializer.serialize(UUri.newBuilder().setAuthorityName("testDestination.someUri.network").setUeId(2).setUeVersionMajor(1).setResourceId(1).build()))
                 ))
                 .payload("Hello World".getBytes(Charset.defaultCharset()))
                 .send();

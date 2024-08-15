@@ -49,18 +49,6 @@ import static org.eclipse.uprotocol.v1.UCode.OK;
 class HiveMqMQTT5Client implements UTransport {
 
     public static final Logger LOG = LoggerFactory.getLogger(HiveMqMQTT5Client.class);
-    public static final String USER_PROPERTIES_KEY_FOR_ID = "1";
-    public static final String USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE = "2";
-    public static final String USER_PROPERTIES_KEY_FOR_SOURCE_NAME = "3";
-    public static final String USER_PROPERTIES_KEY_FOR_SINK_NAME = "4";
-    public static final String USER_PROPERTIES_KEY_FOR_PRIORITY = "5";
-    public static final String USER_PROPERTIES_KEY_FOR_TTL = "6";
-    public static final String USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL = "7";
-    public static final String USER_PROPERTIES_KEY_FOR_COMMSTATUS = "8";
-    public static final String USER_PROPERTIES_KEY_FOR_REQID = "9";
-    public static final String USER_PROPERTIES_KEY_FOR_TOKEN = "10";
-    public static final String USER_PROPERTIES_KEY_FOR_TRACEPARENT = "11";
-    public static final String USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT = "12";
     private final Mqtt5AsyncClient client;
     private final UUri source;
 
@@ -122,40 +110,40 @@ class HiveMqMQTT5Client implements UTransport {
         Mqtt5UserPropertiesBuilder builder = Mqtt5UserProperties.builder();
         builder.add("0", "1");
         if (attributes.hasId())
-            builder.add(USER_PROPERTIES_KEY_FOR_ID, UuidSerializer.serialize(attributes.getId()));
+            builder.add(String.valueOf(UAttributes.ID_FIELD_NUMBER), UuidSerializer.serialize(attributes.getId()));
 
         if(attributes.getType() != UMessageType.UMESSAGE_TYPE_UNSPECIFIED)
-            builder.add(USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE, Integer.toString(attributes.getTypeValue()));
+            builder.add(String.valueOf(UAttributes.TYPE_FIELD_NUMBER), Integer.toString(attributes.getTypeValue()));
 
         if(attributes.hasSource())
-            builder.add(USER_PROPERTIES_KEY_FOR_SOURCE_NAME, UriSerializer.serialize(attributes.getSource()));
+            builder.add(String.valueOf(UAttributes.SOURCE_FIELD_NUMBER), UriSerializer.serialize(attributes.getSource()));
 
         if(attributes.hasSink())
-            builder.add(USER_PROPERTIES_KEY_FOR_SINK_NAME, UriSerializer.serialize(attributes.getSink()));
+            builder.add(String.valueOf(UAttributes.SINK_FIELD_NUMBER), UriSerializer.serialize(attributes.getSink()));
 
         if(attributes.getPriority() != UPriority.UPRIORITY_UNSPECIFIED)
-            builder.add(USER_PROPERTIES_KEY_FOR_PRIORITY, Integer.toString(attributes.getPriorityValue()));
+            builder.add(String.valueOf(UAttributes.PRIORITY_FIELD_NUMBER), Integer.toString(attributes.getPriorityValue()));
 
         if (attributes.hasTtl())
-            builder.add(USER_PROPERTIES_KEY_FOR_TTL, Integer.toString(attributes.getTtl()));
+            builder.add(String.valueOf(UAttributes.TTL_FIELD_NUMBER), Integer.toString(attributes.getTtl()));
 
         if(attributes.hasPermissionLevel())
-            builder.add(USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL, Integer.toString(attributes.getPermissionLevel()));
+            builder.add(String.valueOf(UAttributes.PERMISSION_LEVEL_FIELD_NUMBER), Integer.toString(attributes.getPermissionLevel()));
 
         if(attributes.hasCommstatus())
-            builder.add(USER_PROPERTIES_KEY_FOR_COMMSTATUS, Integer.toString(attributes.getCommstatusValue()));
+            builder.add(String.valueOf(UAttributes.COMMSTATUS_FIELD_NUMBER), Integer.toString(attributes.getCommstatusValue()));
 
         if(attributes.hasReqid())
-            builder.add(USER_PROPERTIES_KEY_FOR_REQID, UuidSerializer.serialize(attributes.getReqid()));
+            builder.add(String.valueOf(UAttributes.REQID_FIELD_NUMBER), UuidSerializer.serialize(attributes.getReqid()));
 
         if(attributes.hasToken())
-            builder.add(USER_PROPERTIES_KEY_FOR_TOKEN, attributes.getToken());
+            builder.add(String.valueOf(UAttributes.TOKEN_FIELD_NUMBER), attributes.getToken());
 
         if(attributes.hasTraceparent())
-            builder.add(USER_PROPERTIES_KEY_FOR_TRACEPARENT, attributes.getTraceparent());
+            builder.add(String.valueOf(UAttributes.TRACEPARENT_FIELD_NUMBER), attributes.getTraceparent());
 
         if(attributes.getPayloadFormat() != UPayloadFormat.UPAYLOAD_FORMAT_UNSPECIFIED)
-            builder.add(USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT, Integer.toString(attributes.getPayloadFormatValue()));
+            builder.add(String.valueOf(UAttributes.PAYLOAD_FORMAT_FIELD_NUMBER), Integer.toString(attributes.getPayloadFormatValue()));
 
         return builder.build();
     }
@@ -294,29 +282,30 @@ class HiveMqMQTT5Client implements UTransport {
             } catch (NumberFormatException e) {
                 LOG.trace("value is not a number {}", value);
             }
-            switch (key) {
-                case USER_PROPERTIES_KEY_FOR_ID -> builder.setId(UuidSerializer.deserialize(value));
-                case USER_PROPERTIES_KEY_FOR_MESSAGE_TYPE ->
-                        valueAsInt.map(UMessageType::forNumber).ifPresent(builder::setType);
-                case USER_PROPERTIES_KEY_FOR_SOURCE_NAME -> builder.setSource(UriSerializer.deserialize(value));
-                case USER_PROPERTIES_KEY_FOR_SINK_NAME ->  builder.setSink(UriSerializer.deserialize(value));
-                case USER_PROPERTIES_KEY_FOR_PRIORITY ->
-                        valueAsInt.map(UPriority::forNumber).ifPresent(builder::setPriority);
-                case USER_PROPERTIES_KEY_FOR_TTL ->
-                        valueAsInt.ifPresent(builder::setTtl);
-                case USER_PROPERTIES_KEY_FOR_PERMISSION_LEVEL ->
-                        valueAsInt.ifPresent(builder::setPermissionLevel);
-                case USER_PROPERTIES_KEY_FOR_COMMSTATUS ->
-                        valueAsInt.map(UCode::forNumber).ifPresent(builder::setCommstatus);
-                case USER_PROPERTIES_KEY_FOR_REQID -> builder.setReqid(UuidSerializer.deserialize(value));
-                case USER_PROPERTIES_KEY_FOR_TOKEN ->
-                        builder.setToken(value);
-                case USER_PROPERTIES_KEY_FOR_TRACEPARENT ->
-                        builder.setTraceparent(value);
-                case USER_PROPERTIES_KEY_FOR_PAYLOAD_FORMAT ->
-                        valueAsInt.map(UPayloadFormat::forNumber).ifPresent(builder::setPayloadFormat);
+            int keyAsNumber;
+            try {
+                keyAsNumber = Integer.parseInt(key);
+            } catch (NumberFormatException e) {
+                LOG.error("key is not a number {}", key);
+                return;
+            }
+            //@formatter:off
+            switch (keyAsNumber) {
+                case UAttributes.ID_FIELD_NUMBER -> builder.setId(UuidSerializer.deserialize(value));
+                case UAttributes.TYPE_FIELD_NUMBER -> valueAsInt.map(UMessageType::forNumber).ifPresent(builder::setType);
+                case UAttributes.SOURCE_FIELD_NUMBER -> builder.setSource(UriSerializer.deserialize(value));
+                case UAttributes.SINK_FIELD_NUMBER ->  builder.setSink(UriSerializer.deserialize(value));
+                case UAttributes.PRIORITY_FIELD_NUMBER -> valueAsInt.map(UPriority::forNumber).ifPresent(builder::setPriority);
+                case UAttributes.TTL_FIELD_NUMBER -> valueAsInt.ifPresent(builder::setTtl);
+                case UAttributes.PERMISSION_LEVEL_FIELD_NUMBER -> valueAsInt.ifPresent(builder::setPermissionLevel);
+                case UAttributes.COMMSTATUS_FIELD_NUMBER -> valueAsInt.map(UCode::forNumber).ifPresent(builder::setCommstatus);
+                case UAttributes.REQID_FIELD_NUMBER -> builder.setReqid(UuidSerializer.deserialize(value));
+                case UAttributes.TOKEN_FIELD_NUMBER -> builder.setToken(value);
+                case UAttributes.TRACEPARENT_FIELD_NUMBER -> builder.setTraceparent(value);
+                case UAttributes.PAYLOAD_FORMAT_FIELD_NUMBER -> valueAsInt.map(UPayloadFormat::forNumber).ifPresent(builder::setPayloadFormat);
                 default -> LOG.warn("unknown user properties for key {}", key);
             }
+            //@formatter:on
         });
 
         return builder.build();
