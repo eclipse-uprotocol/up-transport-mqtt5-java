@@ -12,33 +12,69 @@
  */
 package org.eclipse.uprotocol.mqtt;
 
-import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
+import com.hivemq.client.mqtt.MqttClientState;
+import com.hivemq.client.mqtt.datatypes.MqttClientIdentifier;
+import com.hivemq.client.mqtt.mqtt5.Mqtt5AsyncClient;
+import com.hivemq.client.mqtt.mqtt5.Mqtt5ClientConfig;
+
 import org.eclipse.uprotocol.transport.UTransport;
-import org.eclipse.uprotocol.v1.UUri;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 
 class TransportFactoryTest {
 
+    private Mqtt5AsyncClient mqttClient;
 
-    @Test
-    void givenNoClient_whenInvokeCreateInstance_shouldThrowAnException() {
-        assertThatCode(() -> TransportFactory.createInstance(mock(UUri.class), null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("source and client must not be null");
+    @BeforeEach
+    void createClient() {
+        var config = mock(Mqtt5ClientConfig.class);
+        when(config.getClientIdentifier()).thenReturn(Optional.of(MqttClientIdentifier.of("test.client")));
+        mqttClient = mock(Mqtt5AsyncClient.class);
+        when(mqttClient.getState()).thenReturn(MqttClientState.CONNECTED);
+        when(mqttClient.getConfig()).thenReturn(config);
+        when(mqttClient.toAsync()).thenReturn(mqttClient);
     }
 
     @Test
-    void givenValidClient_whenInvokeCreateInstance_shouldReturnInstanceOfUTransport() {
-        Mqtt5Client mockedClient = mock(Mqtt5Client.class);
+    void testFactoryRejectsNullArgs() {
+        assertThatCode(() -> HiveMqTransportFactory.createInstance(
+                null,
+                TransportMode.IN_VEHICLE,
+                "my.vehicle"))
+                .isInstanceOf(NullPointerException.class);
+        assertThatCode(() -> HiveMqTransportFactory.createInstance(
+                mqttClient,
+                TransportMode.IN_VEHICLE,
+                null))
+            .isInstanceOf(NullPointerException.class);
+    }
 
-        var result = TransportFactory.createInstance(mock(UUri.class), mockedClient);
+    @Test
+    void testFactoryRejectsDisconnectedClient() {
+        when(mqttClient.getState()).thenReturn(MqttClientState.DISCONNECTED);
+        assertThatCode(() -> HiveMqTransportFactory.createInstance(
+                mqttClient,
+                TransportMode.IN_VEHICLE,
+                "my.vehicle"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void testFactorySucceeds() {
+        var result = HiveMqTransportFactory.createInstance(
+            mqttClient,
+            TransportMode.IN_VEHICLE,
+            "my.vehicle");
 
         assertThat(result)
-                .isInstanceOf(HiveMqMQTT5Client.class)
+                .isInstanceOf(HiveMqTransport.class)
                 .isInstanceOf(UTransport.class);
     }
 }
