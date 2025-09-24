@@ -17,12 +17,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.eclipse.uprotocol</groupId>
-    <artifactId>up-client-mqtt5-java</artifactId>
+    <artifactId>up-transport-mqtt5-java</artifactId>
     <name>MQTT 5 Transport Library for uProtocol</name>
     <description>A Java based implementation of the MQTT 5 uProtocol Transport</description>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <url>https://github.com/eclipse-uprotocol/up-client-mqtt5-java/</url>
+    <url>https://github.com/eclipse-uprotocol/up-transport-mqtt5-java/</url>
 
     <licenses>
         <license>
@@ -47,13 +47,13 @@
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/eclipse-uprotocol/up-client-mqtt5-java.git</connection>
-        <developerConnection>scm:git:ssh://github.com:eclipse-uprotocol/up-client-mqtt5-java.git</developerConnection>
-        <url>https://github.com/eclipse-uprotocol/up-client-mqtt5-java.git</url>
+        <connection>scm:git:https://github.com/eclipse-uprotocol/up-transport-mqtt5-java.git</connection>
+        <developerConnection>scm:git:https://github.com:eclipse-uprotocol/up-transport-mqtt5-java.git</developerConnection>
+        <url>https://github.com/eclipse-uprotocol/up-transport-mqtt5-java.git</url>
     </scm>
 
     <!-- 
-        This is temporary until we have a release of up-java in Maven Central
+        This is temporary until we have a non-SNAPSHOT release of up-java in Maven Central
          - see https://github.com/eclipse-uprotocol/up-java
     -->
     <repositories>
