@@ -13,15 +13,20 @@
 package org.eclipse.uprotocol.mqtt;
 
 import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
+
+import java.util.Objects;
+
 import org.eclipse.uprotocol.transport.UTransport;
-import org.eclipse.uprotocol.v1.UUri;
 
-public class TransportFactory {
+public final class HiveMqTransportFactory {
 
-    public static UTransport createInstance(UUri source, Mqtt5Client client) {
-        if (source == null || client == null)
-            throw new IllegalArgumentException("source and client must not be null");
+    private HiveMqTransportFactory() {
+        // utility class
+    }
 
-        return new HiveMqMQTT5Client(source, client);
+    public static UTransport createInstance(Mqtt5Client client, TransportMode mode, String authorityName) {
+        Objects.requireNonNull(client);
+        Objects.requireNonNull(authorityName);
+        return new HiveMqTransport(client, authorityName, mode);
     }
 }
